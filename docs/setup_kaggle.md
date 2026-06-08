@@ -105,7 +105,10 @@ login("YOUR_HF_TOKEN")
 Sau đó test nhanh:
 
 ```python
+from transformers.models.gemma4 import Gemma4Config
 from transformers import AutoTokenizer
+
+print("Gemma4Config import ok:", Gemma4Config.__name__)
 tokenizer = AutoTokenizer.from_pretrained("google/gemma-4-26B-A4B-it", token=True)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
