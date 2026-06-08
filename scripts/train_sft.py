@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 import torch
 from torch.utils.data import ConcatDataset, DataLoader
 from transformers import (
-    AutoModelForImageTextToText,
+    AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
     get_linear_schedule_with_warmup,
@@ -307,7 +307,7 @@ def load_trainable_model(model_name_or_path: str, load_in_4bit: bool = False):
                 bnb_4bit_use_double_quant=True,
             )
 
-    return AutoModelForImageTextToText.from_pretrained(model_name_or_path, **load_kwargs)
+    return AutoModelForCausalLM.from_pretrained(model_name_or_path, **load_kwargs)
 
 
 def dump_example_prompts(dataset, prompt_builder: GemmaMERG, output_dir: Path, num_examples: int = 3) -> None:

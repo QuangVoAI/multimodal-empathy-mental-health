@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 
 import torch
 from transformers import (
-    AutoModelForImageTextToText,
+    AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
 )
@@ -85,7 +85,7 @@ class GemmaMERG:
                     bnb_4bit_quant_type="nf4",
                     bnb_4bit_use_double_quant=True,
                 )
-        model = AutoModelForImageTextToText.from_pretrained(self.model_name_or_path, **load_kwargs)
+        model = AutoModelForCausalLM.from_pretrained(self.model_name_or_path, **load_kwargs)
 
         if self.adapter_path:
             if PeftModel is None:
