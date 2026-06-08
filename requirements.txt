@@ -4,7 +4,7 @@ datasets==4.8.5
 accelerate>=1.10.0
 peft>=0.17.0
 sentencepiece>=0.2.0
-huggingface_hub==1.10.1
+huggingface_hub==0.36.0
 safetensors>=0.6.0
 pyyaml>=6.0.2
 tqdm>=4.67.0
