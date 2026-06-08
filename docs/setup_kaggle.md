@@ -106,13 +106,14 @@ Sau đó test nhanh:
 
 ```python
 from transformers.models.gemma4 import Gemma4Config
-from transformers import AutoTokenizer
+from transformers import AutoProcessor
 
 print("Gemma4Config import ok:", Gemma4Config.__name__)
-tokenizer = AutoTokenizer.from_pretrained("google/gemma-4-26B-A4B-it", token=True)
-if tokenizer.pad_token is None:
+processor = AutoProcessor.from_pretrained("google/gemma-4-26B-A4B-it", token=True)
+tokenizer = getattr(processor, "tokenizer", None)
+if tokenizer is not None and tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
-print(tokenizer.pad_token, tokenizer.eos_token)
+print(type(processor).__name__, tokenizer.pad_token if tokenizer else None, tokenizer.eos_token if tokenizer else None)
 ```
 
 Nếu bước này fail, dừng lại luôn và sửa quyền / token trước.

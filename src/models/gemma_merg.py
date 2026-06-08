@@ -5,8 +5,8 @@ from typing import Any, Dict, List, Optional
 
 import torch
 from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
+    AutoModelForImageTextToText,
+    AutoProcessor,
     BitsAndBytesConfig,
 )
 
@@ -64,7 +64,8 @@ class GemmaMERG:
         self.torch_dtype = torch_dtype or (torch.bfloat16 if self.device == "cuda" else torch.float32)
         self.load_in_4bit = load_in_4bit
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+        self.processor = AutoProcessor.from_pretrained(model_name_or_path)
+        self.tokenizer = getattr(self.processor, "tokenizer", self.processor)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
@@ -85,7 +86,7 @@ class GemmaMERG:
                     bnb_4bit_quant_type="nf4",
                     bnb_4bit_use_double_quant=True,
                 )
-        model = AutoModelForCausalLM.from_pretrained(self.model_name_or_path, **load_kwargs)
+        model = AutoModelForImageTextToText.from_pretrained(self.model_name_or_path, **load_kwargs)
 
         if self.adapter_path:
             if PeftModel is None:
