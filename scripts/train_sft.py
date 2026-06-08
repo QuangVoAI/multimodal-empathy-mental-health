@@ -11,6 +11,7 @@ from torch.utils.data import ConcatDataset
 from transformers import (
     AutoModelForImageTextToText,
     AutoModelForCausalLM,
+    AutoProcessor,
     AutoTokenizer,
     BitsAndBytesConfig,
     Trainer,
@@ -92,6 +93,7 @@ def build_user_prompt(prompt_builder: GemmaMERG, sample: Dict[str, Any]) -> str:
 
 def tokenize_supervised_sample(
     sample: Dict[str, Any],
+    processor,
     tokenizer: AutoTokenizer,
     prompt_builder: GemmaMERG,
     max_length: int,
@@ -105,12 +107,12 @@ def tokenize_supervised_sample(
     ]
     full_messages = prompt_messages + [{"role": "assistant", "content": target_response}]
 
-    prompt_text = tokenizer.apply_chat_template(
+    prompt_text = processor.apply_chat_template(
         prompt_messages,
         tokenize=False,
         add_generation_prompt=True,
     )
-    full_text = tokenizer.apply_chat_template(
+    full_text = processor.apply_chat_template(
         full_messages,
         tokenize=False,
         add_generation_prompt=False,
@@ -144,11 +146,13 @@ class SupervisedTask1Dataset(torch.utils.data.Dataset):
     def __init__(
         self,
         base_dataset,
+        processor,
         tokenizer: AutoTokenizer,
         prompt_builder: GemmaMERG,
         max_length: int,
     ) -> None:
         self.base_dataset = base_dataset
+        self.processor = processor
         self.tokenizer = tokenizer
         self.prompt_builder = prompt_builder
         self.max_length = max_length
@@ -160,6 +164,7 @@ class SupervisedTask1Dataset(torch.utils.data.Dataset):
         sample = self.base_dataset[idx]
         return tokenize_supervised_sample(
             sample=sample,
+            processor=self.processor,
             tokenizer=self.tokenizer,
             prompt_builder=self.prompt_builder,
             max_length=self.max_length,
@@ -261,13 +266,18 @@ def run_training(args: argparse.Namespace) -> None:
         print(f"Saved example prompts to {output_dir / 'example_prompts.json'}")
         return
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
+    processor = AutoProcessor.from_pretrained(args.model_name_or_path)
+    tokenizer = getattr(processor, "tokenizer", None)
+    if tokenizer is None:
+        tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
     prompt_builder.tokenizer = tokenizer
+    prompt_builder.processor = processor
 
     train_dataset = SupervisedTask1Dataset(
         base_dataset=base_dataset,
+        processor=processor,
         tokenizer=tokenizer,
         prompt_builder=prompt_builder,
         max_length=args.max_length,

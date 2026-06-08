@@ -104,9 +104,10 @@ login("YOUR_HF_TOKEN")
 Sau đó test nhanh:
 
 ```python
-from transformers import AutoTokenizer
-tok = AutoTokenizer.from_pretrained("google/gemma-4-26B-A4B-it", token=True)
-print(tok.pad_token, tok.eos_token)
+from transformers import AutoProcessor
+processor = AutoProcessor.from_pretrained("google/gemma-4-26B-A4B-it", token=True)
+tokenizer = getattr(processor, "tokenizer", None)
+print(tokenizer.pad_token if tokenizer else None, tokenizer.eos_token if tokenizer else None)
 ```
 
 Nếu bước này fail, dừng lại luôn và sửa quyền / token trước.
