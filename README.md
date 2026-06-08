@@ -91,6 +91,8 @@ The notebook imports and calls `run_training(...)` from:
 - Kaggle: [docs/setup_kaggle.md](docs/setup_kaggle.md)
 - VM / cloud GPU: [docs/setup_vm.md](docs/setup_vm.md)
 - General runbook: [docs/runbook.md](docs/runbook.md)
+- Post-training pipeline: [docs/post_training_pipeline.md](docs/post_training_pipeline.md)
+- Hugging Face publish notes: [docs/hf_publish_checklist.md](docs/hf_publish_checklist.md)
 
 ## Notes
 

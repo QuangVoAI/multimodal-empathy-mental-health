@@ -4,7 +4,17 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import (
+    AutoModelForCausalLM,
+    AutoModelForImageTextToText,
+    AutoTokenizer,
+    BitsAndBytesConfig,
+)
+
+try:
+    from peft import PeftModel
+except ImportError:  # pragma: no cover
+    PeftModel = None
 
 
 DEFAULT_SYSTEM_PROMPT = """You are a supportive, emotionally aware assistant.
@@ -44,24 +54,48 @@ class GemmaMERG:
     def __init__(
         self,
         model_name_or_path: str,
+        adapter_path: Optional[str] = None,
         device: Optional[str] = None,
         torch_dtype: Optional[torch.dtype] = None,
+        load_in_4bit: bool = False,
     ) -> None:
         self.model_name_or_path = model_name_or_path
+        self.adapter_path = adapter_path
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.torch_dtype = torch_dtype or (torch.bfloat16 if self.device == "cuda" else torch.float32)
+        self.load_in_4bit = load_in_4bit
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name_or_path,
-            torch_dtype=self.torch_dtype,
-            device_map="auto" if self.device == "cuda" else None,
-        )
+        self.model = self._load_model()
         if self.device != "cuda":
             self.model.to(self.device)
+
+    def _load_model(self):
+        load_kwargs: Dict[str, Any] = {
+            "torch_dtype": self.torch_dtype,
+        }
+        if self.device == "cuda":
+            load_kwargs["device_map"] = "auto"
+            if self.load_in_4bit:
+                load_kwargs["quantization_config"] = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.bfloat16,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_use_double_quant=True,
+                )
+        try:
+            model = AutoModelForCausalLM.from_pretrained(self.model_name_or_path, **load_kwargs)
+        except Exception:
+            model = AutoModelForImageTextToText.from_pretrained(self.model_name_or_path, **load_kwargs)
+
+        if self.adapter_path:
+            if PeftModel is None:
+                raise ImportError("peft is required to load a LoRA adapter checkpoint.")
+            model = PeftModel.from_pretrained(model, self.adapter_path)
+        return model
 
     @staticmethod
     def _format_history(history: List[Dict[str, str]]) -> str:
@@ -177,4 +211,3 @@ Output only the response."""
         )
         generated = output_ids[0][model_inputs["input_ids"].shape[1]:]
         return self.tokenizer.decode(generated, skip_special_tokens=True).strip()
-
