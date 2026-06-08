@@ -7,7 +7,7 @@ TARGET_DIR="${ROOT_DIR}/data/raw/avamerg"
 mkdir -p "${TARGET_DIR}"
 
 if ! command -v hf >/dev/null 2>&1; then
-  echo "Error: 'hf' CLI not found. Install it first with 'pip install -U huggingface_hub[cli]'." >&2
+  echo "Error: 'hf' CLI not found. Install it first with 'pip install -U huggingface_hub'." >&2
   exit 1
 fi
 

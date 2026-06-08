@@ -82,7 +82,7 @@ pip install torch transformers datasets accelerate peft sentencepiece
 ### 2.3 Nếu muốn dùng Hugging Face CLI
 
 ```bash
-pip install "huggingface_hub[cli]"
+pip install -U huggingface_hub
 hf auth login
 ```
 

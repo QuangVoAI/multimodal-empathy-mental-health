@@ -123,7 +123,7 @@ Bạn có thể:
 Ví dụ:
 
 ```bash
-!pip install "huggingface_hub[cli]"
+!pip install -U huggingface_hub
 !hf download ZhangHanXD/AvaMERG train.json --repo-type dataset --local-dir data/raw/avamerg
 ```
 
@@ -293,4 +293,3 @@ Trình tự chuẩn là:
 4. dump prompt
 5. smoke test 1 step
 6. chạy LoRA train thật
-
