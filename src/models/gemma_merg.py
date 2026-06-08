@@ -6,8 +6,6 @@ from typing import Any, Dict, List, Optional
 import torch
 from transformers import (
     AutoModelForCausalLM,
-    AutoModelForImageTextToText,
-    AutoProcessor,
     AutoTokenizer,
     BitsAndBytesConfig,
 )
@@ -66,10 +64,7 @@ class GemmaMERG:
         self.torch_dtype = torch_dtype or (torch.bfloat16 if self.device == "cuda" else torch.float32)
         self.load_in_4bit = load_in_4bit
 
-        self.processor = AutoProcessor.from_pretrained(model_name_or_path)
-        self.tokenizer = getattr(self.processor, "tokenizer", None)
-        if self.tokenizer is None:
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
@@ -90,10 +85,7 @@ class GemmaMERG:
                     bnb_4bit_quant_type="nf4",
                     bnb_4bit_use_double_quant=True,
                 )
-        try:
-            model = AutoModelForCausalLM.from_pretrained(self.model_name_or_path, **load_kwargs)
-        except Exception:
-            model = AutoModelForImageTextToText.from_pretrained(self.model_name_or_path, **load_kwargs)
+        model = AutoModelForCausalLM.from_pretrained(self.model_name_or_path, **load_kwargs)
 
         if self.adapter_path:
             if PeftModel is None:
@@ -181,7 +173,7 @@ Output only the response."""
 
     def prepare_inputs(self, sample: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         messages = self.build_messages(sample)
-        tokenized = self.processor.apply_chat_template(
+        tokenized = self.tokenizer.apply_chat_template(
             messages,
             tokenize=True,
             return_dict=True,
