@@ -4,7 +4,8 @@ Public research repo for **Task 1**: empathetic and safety-aware response genera
 
 - **Train / adapt:** `AvaMERG + ESConv`
 - **Eval:** `MentalChat16K`
-- **Main model:** `google/gemma-4-12B-it`
+- **Main model family:** `Gemma 4 12B`
+- **Recommended Kaggle training model:** `unsloth/gemma-4-12b-it`
 
 This repo is designed to be **Kaggle-first**:
 
@@ -18,6 +19,8 @@ This repo is designed to be **Kaggle-first**:
 multimodal-empathy-mental-health/
 ├── README.md
 ├── requirements.txt
+├── requirements_kaggle.txt
+├── requirements_kaggle_unsloth.txt
 ├── environment_setup.sh
 ├── .gitignore
 ├── configs/
@@ -29,6 +32,7 @@ multimodal-empathy-mental-health/
 │   ├── setup_kaggle.md
 │   └── setup_vm.md
 ├── notebooks/
+│   ├── task1_gemma12b_unsloth_train.ipynb
 │   └── task1_gemma12b_train.ipynb
 ├── outputs/
 ├── scripts/
@@ -45,19 +49,20 @@ multimodal-empathy-mental-health/
 
 - unified dataset loading for `AvaMERG` and `ESConv`
 - prompt construction for `Gemma 4 12B`
-- Kaggle-ready `4-bit + LoRA` SFT scaffold
+- Kaggle-ready **Unsloth-first** SFT scaffold
+- fallback Transformers path if needed
 - prompt dump before training
 - smoke-test training path
 
 ## Recommended workflow
 
 1. Open the Kaggle notebook:
-   - [notebooks/task1_gemma12b_train.ipynb](notebooks/task1_gemma12b_train.ipynb)
+   - [notebooks/task1_gemma12b_unsloth_train.ipynb](notebooks/task1_gemma12b_unsloth_train.ipynb)
 2. Login to Hugging Face
 3. Download `AvaMERG` and `ESConv`
 4. Dump prompts and inspect them
 5. Run a `max_steps=1` smoke test
-6. Launch `4-bit + LoRA` training
+6. Launch `4-bit + LoRA` training with Unsloth
 
 ## Kaggle-first bootstrap
 
@@ -80,9 +85,18 @@ Then download the datasets:
 
 Use:
 
+- [notebooks/task1_gemma12b_unsloth_train.ipynb](notebooks/task1_gemma12b_unsloth_train.ipynb)
+
+Fallback notebook:
+
 - [notebooks/task1_gemma12b_train.ipynb](notebooks/task1_gemma12b_train.ipynb)
 
-The notebook imports and calls `run_training(...)` from:
+The Unsloth notebook uses:
+
+- `unsloth.FastLanguageModel`
+- `trl.SFTTrainer`
+
+The fallback Transformers notebook imports and calls `run_training(...)` from:
 
 - [scripts/train_sft.py](scripts/train_sft.py)
 
@@ -100,3 +114,8 @@ The notebook imports and calls `run_training(...)` from:
 - `ESConv` is used as the **support-strategy dataset**
 - `MentalChat16K` is reserved for evaluation rather than early-stage training
 - this repo currently focuses on **Task 1 text response generation**
+
+
+## Unsloth compatibility note
+
+Unsloth's official model catalog includes Gemma 4 in its supported model list, and Hugging Face hosts `unsloth/gemma-4-12b-it` with direct `FastModel.from_pretrained(...)` usage instructions. This repo therefore treats the Unsloth Kaggle notebook as the primary training path for the 12B setup, with the plain Transformers route kept as a fallback.

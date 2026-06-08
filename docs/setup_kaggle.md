@@ -12,6 +12,8 @@ Mục tiêu trên Kaggle là:
 - chạy **LoRA SFT** trên Kaggle GPU
 - lưu checkpoint và output ra thư mục notebook
 
+> Đường khuyến nghị hiện tại là **Unsloth-first** với model `unsloth/gemma-4-12b-it`. Đường `transformers + train_sft.py` vẫn được giữ như fallback.
+
 > Để phù hợp với Kaggle GPU, cấu hình nên ưu tiên là **4-bit + LoRA**, không phải full fine-tuning.
 
 ---
@@ -78,20 +80,33 @@ Push project lên repo riêng rồi clone trong notebook:
 
 ## 4. Cài môi trường trong Kaggle
 
+### 4.1 Đường khuyến nghị: notebook Unsloth
+
 Trong một cell đầu:
 
 ```bash
 !git clone https://github.com/QuangVoAI/multimodal-empathy-mental-health.git
 %cd /kaggle/working/multimodal-empathy-mental-health
-%pip uninstall -y datasets transformers huggingface_hub accelerate peft bitsandbytes sentencepiece tokenizers torchvision
-%pip install --no-cache-dir --force-reinstall -r requirements_kaggle.txt
+%pip uninstall -y datasets transformers huggingface_hub accelerate peft bitsandbytes sentencepiece tokenizers torchvision unsloth unsloth_zoo trl
+%pip install --no-cache-dir --force-reinstall -r requirements_kaggle_unsloth.txt
 ```
 
-Khong can cai lai `torch` tren Kaggle. Muc tieu la giu nguyen bo `torch/CUDA` da co san cua Kaggle, chi cap nhat cac package Hugging Face can cho Gemma.
+Khong can cai lai `torch` tren Kaggle. Muc tieu la giu nguyen bo `torch/CUDA` da co san cua Kaggle, chi cap nhat cac package can cho Unsloth va Gemma.
 
 Notebook Task 1 khong can `torchvision`. Tren Kaggle, `torchvision` preinstalled doi khi lech version voi `torch` va gay loi import `torchvision::nms`, nen minh chu dong go no ra khoi train flow.
 
 Sau cell cài package, **restart kernel / session ngay** rồi mới chạy tiếp từ cell đăng nhập Hugging Face. Nếu không, Kaggle có thể giữ lại module cũ trong bộ nhớ và gây lỗi import lệch version.
+
+Notebook chinh:
+
+- [task1_gemma12b_unsloth_train.ipynb](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/task1_gemma12b_unsloth_train.ipynb>)
+
+### 4.2 Fallback: notebook Transformers
+
+Neu Unsloth gap su co rieng tren runtime cua ban, ban moi quay lai:
+
+- `requirements_kaggle.txt`
+- `task1_gemma12b_train.ipynb`
 
 ---
 
@@ -104,12 +119,18 @@ from huggingface_hub import login
 login("YOUR_HF_TOKEN")
 ```
 
-Sau đó test nhanh:
+Sau do test nhanh theo duong Unsloth:
 
 ```python
-from transformers import AutoTokenizer
+from unsloth import FastLanguageModel
 
-tokenizer = AutoTokenizer.from_pretrained("google/gemma-4-12B-it", token=True)
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name = "unsloth/gemma-4-12b-it",
+    max_seq_length = 1536,
+    dtype = None,
+    load_in_4bit = True,
+    token = "YOUR_HF_TOKEN",
+)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 print(type(tokenizer).__name__, tokenizer.pad_token, tokenizer.eos_token)
