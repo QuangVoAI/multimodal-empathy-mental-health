@@ -81,13 +81,13 @@ Push project lên repo riêng rồi clone trong notebook:
 Trong một cell đầu:
 
 ```bash
-%cd /kaggle/working/empathy_mh_gemma
-%pip uninstall -y datasets
-%pip install --upgrade pip setuptools wheel
-%pip install --no-cache-dir --force-reinstall -r requirements.txt
+!git clone https://github.com/QuangVoAI/multimodal-empathy-mental-health.git
+%cd /kaggle/working/multimodal-empathy-mental-health
+%pip uninstall -y datasets transformers huggingface_hub accelerate peft bitsandbytes sentencepiece tokenizers
+%pip install --no-cache-dir --force-reinstall -r requirements_kaggle.txt
 ```
 
-Nếu Kaggle đang dùng Python khác `3.10`, điều đó vẫn có thể ổn miễn là `torch` và `transformers` cài được.
+Khong can cai lai `torch` tren Kaggle. Muc tieu la giu nguyen bo `torch/CUDA` da co san cua Kaggle, chi cap nhat cac package Hugging Face can cho Gemma.
 
 Sau cell cài package, **restart kernel / session ngay** rồi mới chạy tiếp từ cell đăng nhập Hugging Face. Nếu không, Kaggle có thể giữ lại module cũ trong bộ nhớ và gây lỗi import lệch version.
 
