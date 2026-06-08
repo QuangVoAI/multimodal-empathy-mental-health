@@ -41,7 +41,7 @@ class PromptParts:
 
 class GemmaMERG:
     """
-    Task-1-oriented scaffold for Gemma 4 26B.
+    Task-1-oriented scaffold for Gemma 4 12B.
 
     This class does not yet implement multimodal embedding injection.
     Instead, it provides:

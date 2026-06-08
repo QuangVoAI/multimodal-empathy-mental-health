@@ -12,7 +12,7 @@ sang:
 
 - đọc dữ liệu thật
 - kiểm tra prompt từ dữ liệu thật
-- chạy một vòng SFT nhỏ với `Gemma 4 26B`
+- chạy một vòng SFT nhỏ với `Gemma 4 12B`
 
 Trình tự được tối ưu cho **Task 1**.
 
@@ -234,7 +234,7 @@ Cần chỉnh chủ yếu:
 
 ```bash
 python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \
@@ -246,7 +246,7 @@ python scripts/train_sft.py \
 
 ```bash
 python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \
@@ -255,7 +255,7 @@ python scripts/train_sft.py \
   --dump_example_prompts
 ```
 
-> Lưu ý: model chính đã chốt là `google/gemma-4-26B-A4B-it`. Nếu cần smoke test nhẹ hơn vì giới hạn bộ nhớ, có thể tạm thay bằng một model instruct nhỏ hơn, nhưng đường chạy chính nên giữ theo model id này.
+> Lưu ý: model chính đã chốt là `google/gemma-4-12B-it`. Nếu cần smoke test nhẹ hơn vì giới hạn bộ nhớ, có thể tạm thay bằng một model instruct nhỏ hơn, nhưng đường chạy chính nên giữ theo model id này.
 
 ### 7.3 Mở file prompt dump
 
@@ -285,7 +285,7 @@ Mục tiêu:
 
 ```bash
 python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \
@@ -302,7 +302,7 @@ python scripts/train_sft.py \
 
 ```bash
 python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \
@@ -336,7 +336,7 @@ Ví dụ:
 
 ```bash
 python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \

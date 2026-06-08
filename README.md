@@ -4,7 +4,7 @@ Public research repo for **Task 1**: empathetic and safety-aware response genera
 
 - **Train / adapt:** `AvaMERG + ESConv`
 - **Eval:** `MentalChat16K`
-- **Main model:** `google/gemma-4-26B-A4B-it`
+- **Main model:** `google/gemma-4-12B-it`
 
 This repo is designed to be **Kaggle-first**:
 
@@ -29,7 +29,7 @@ multimodal-empathy-mental-health/
 │   ├── setup_kaggle.md
 │   └── setup_vm.md
 ├── notebooks/
-│   └── task1_gemma26b_train.ipynb
+│   └── task1_gemma12b_train.ipynb
 ├── outputs/
 ├── scripts/
 │   ├── train_sft.py
@@ -44,7 +44,7 @@ multimodal-empathy-mental-health/
 ## What this repo currently supports
 
 - unified dataset loading for `AvaMERG` and `ESConv`
-- prompt construction for `Gemma 4 26B A4B`
+- prompt construction for `Gemma 4 12B`
 - Kaggle-ready `4-bit + LoRA` SFT scaffold
 - prompt dump before training
 - smoke-test training path
@@ -52,7 +52,7 @@ multimodal-empathy-mental-health/
 ## Recommended workflow
 
 1. Open the Kaggle notebook:
-   - [notebooks/task1_gemma26b_train.ipynb](notebooks/task1_gemma26b_train.ipynb)
+   - [notebooks/task1_gemma12b_train.ipynb](notebooks/task1_gemma12b_train.ipynb)
 2. Login to Hugging Face
 3. Download `AvaMERG` and `ESConv`
 4. Dump prompts and inspect them
@@ -80,7 +80,7 @@ Then download the datasets:
 
 Use:
 
-- [notebooks/task1_gemma26b_train.ipynb](notebooks/task1_gemma26b_train.ipynb)
+- [notebooks/task1_gemma12b_train.ipynb](notebooks/task1_gemma12b_train.ipynb)
 
 The notebook imports and calls `run_training(...)` from:
 

@@ -14,7 +14,7 @@
 Phù hợp khi:
 - muốn nhẹ
 - muốn public phần fine-tuning của bạn
-- base model vẫn là `google/gemma-4-26B-A4B-it`
+- base model vẫn là `google/gemma-4-12B-it`
 
 ### Option B: Upload merged model
 
@@ -24,8 +24,8 @@ Phù hợp khi:
 
 ## Tên repo gợi ý
 
-- `QuangVoAI/multimodal-empathy-mental-health-gemma26b-task1`
-- `QuangVoAI/gemma26b-avamerg-esconv-task1`
+- `QuangVoAI/multimodal-empathy-mental-health-gemma12b-task1`
+- `QuangVoAI/gemma12b-avamerg-esconv-task1`
 
 ## Nội dung model card nên có
 

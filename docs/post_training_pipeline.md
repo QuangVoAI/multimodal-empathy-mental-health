@@ -15,7 +15,7 @@ Ví dụ với adapter LoRA đã train:
 
 ```bash
 python scripts/generate_predictions.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --adapter_path outputs/sft/final \
   --dataset mentalchat16k \
   --mentalchat16k_name ShenLab/MentalChat16K \
@@ -75,7 +75,7 @@ Ví dụ:
 
 ```bash
 python scripts/publish_to_hub.py \
-  --repo_id QuangVoAI/multimodal-empathy-mental-health-gemma26b-task1 \
+  --repo_id QuangVoAI/multimodal-empathy-mental-health-gemma12b-task1 \
   --folder_path outputs/sft/final \
   --commit_message "Upload Task 1 LoRA checkpoint"
 ```
@@ -83,7 +83,7 @@ python scripts/publish_to_hub.py \
 ## Gợi ý public model
 
 - Nếu bạn upload **adapter LoRA**, trong model card nên ghi rõ:
-  - base model: `google/gemma-4-26B-A4B-it`
+  - base model: `google/gemma-4-12B-it`
   - train data: `AvaMERG + ESConv`
   - eval target: `MentalChat16K`
   - intended use: research / Task 1

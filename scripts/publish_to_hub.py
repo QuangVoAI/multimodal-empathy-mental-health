@@ -8,7 +8,7 @@ from huggingface_hub import create_repo, upload_folder
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Publish a trained checkpoint or adapter to the Hugging Face Hub.")
-    parser.add_argument("--repo_id", type=str, required=True, help="Example: QuangVoAI/multimodal-empathy-gemma26b-task1")
+    parser.add_argument("--repo_id", type=str, required=True, help="Example: QuangVoAI/multimodal-empathy-gemma12b-task1")
     parser.add_argument("--folder_path", type=str, required=True, help="Folder to upload, e.g. outputs/sft/run_01/final")
     parser.add_argument("--private", action="store_true")
     parser.add_argument("--commit_message", type=str, default="Upload trained checkpoint")

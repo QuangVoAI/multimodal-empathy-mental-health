@@ -6,7 +6,7 @@ Kaggle là **môi trường train chính** cho giai đoạn hiện tại của p
 
 Mục tiêu trên Kaggle là:
 
-- chuẩn bị environment train cho `Gemma 4 26B A4B`
+- chuẩn bị environment train cho `Gemma 4 12B`
 - tải và chuẩn hóa `AvaMERG + ESConv`
 - chạy `prompt dump`
 - chạy **LoRA SFT** trên Kaggle GPU
@@ -109,7 +109,7 @@ Sau đó test nhanh:
 ```python
 from transformers import AutoTokenizer
 
-tokenizer = AutoTokenizer.from_pretrained("google/gemma-4-26B-A4B-it", token=True)
+tokenizer = AutoTokenizer.from_pretrained("google/gemma-4-12B-it", token=True)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 print(type(tokenizer).__name__, tokenizer.pad_token, tokenizer.eos_token)
@@ -158,7 +158,7 @@ Ví dụ:
 
 ```bash
 !python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \
@@ -182,7 +182,7 @@ Mục tiêu:
 
 ```bash
 !python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \
@@ -200,7 +200,7 @@ Mục tiêu:
 
 ```bash
 !python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \
@@ -225,7 +225,7 @@ Sau khi smoke test ổn, chạy LoRA SFT trên `AvaMERG + ESConv`.
 
 ```bash
 !python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \
@@ -244,7 +244,7 @@ Sau khi smoke test ổn, chạy LoRA SFT trên `AvaMERG + ESConv`.
 
 ```bash
 !python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \

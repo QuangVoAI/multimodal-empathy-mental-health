@@ -5,7 +5,7 @@
 Máy ảo / cloud GPU là phương án chính nếu:
 
 - Kaggle không đủ tài nguyên
-- bạn muốn train thật với `Gemma 4 26B A4B`
+- bạn muốn train thật với `Gemma 4 12B`
 - bạn muốn lưu checkpoint và chạy thí nghiệm lặp lại
 
 ---
@@ -80,7 +80,7 @@ Test nhanh:
 ```bash
 python - <<'PY'
 from transformers import AutoTokenizer
-tok = AutoTokenizer.from_pretrained("google/gemma-4-26B-A4B-it", token=True)
+tok = AutoTokenizer.from_pretrained("google/gemma-4-12B-it", token=True)
 print("Tokenizer ok:", tok.pad_token, tok.eos_token)
 PY
 ```
@@ -118,7 +118,7 @@ cp /tmp/esconv_repo/ESConv.json data/raw/esconv/ESConv.json
 
 ```bash
 python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \
@@ -141,7 +141,7 @@ sed -n '1,200p' outputs/sft/debug_joint/example_prompts.json
 
 ```bash
 python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \
@@ -157,7 +157,7 @@ python scripts/train_sft.py \
 
 ```bash
 python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \
@@ -184,7 +184,7 @@ thì mới chuyển sang LoRA:
 
 ```bash
 python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-26B-A4B-it \
+  --model_name_or_path google/gemma-4-12B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \
