@@ -1,6 +1,7 @@
 unsloth
 unsloth_zoo
 trl
+transformers>=5.10.2
 datasets>=3.0.0
 accelerate>=1.10.0
 peft>=0.17.0

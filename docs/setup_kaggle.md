@@ -89,9 +89,12 @@ Trong một cell đầu:
 %cd /kaggle/working/multimodal-empathy-mental-health
 %pip uninstall -y datasets transformers huggingface_hub accelerate peft bitsandbytes sentencepiece tokenizers torchvision unsloth unsloth_zoo trl Pillow
 %pip install --no-cache-dir --force-reinstall -r requirements_kaggle_unsloth.txt
+%pip install --no-cache-dir --force-reinstall --no-deps "transformers>=5.10.2"
 ```
 
 Khong can cai lai `torch` tren Kaggle. Muc tieu la giu nguyen bo `torch/CUDA` da co san cua Kaggle, chi cap nhat cac package can cho Unsloth va Gemma.
+
+Dong cai `transformers>=5.10.2` o cuoi la co chu y. `unsloth/gemma-4-12b-it` dung config `gemma4_unified`, va runtime Kaggle co the de lai mot ban `transformers` cu hon muc nay. Ep cap nhat lai o buoc cuoi se giup model duoc nhan dung dung kien truc.
 
 Notebook Task 1 khong can `torchvision`. Tren Kaggle, `torchvision` preinstalled doi khi lech version voi `torch` va gay loi import `torchvision::nms`, nen minh chu dong go no ra khoi train flow.
 
