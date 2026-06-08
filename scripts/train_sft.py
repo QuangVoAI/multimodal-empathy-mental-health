@@ -2,20 +2,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import torch
-from torch.utils.data import ConcatDataset
+from torch.utils.data import ConcatDataset, DataLoader
 from transformers import (
     AutoModelForImageTextToText,
     AutoModelForCausalLM,
     AutoProcessor,
     AutoTokenizer,
     BitsAndBytesConfig,
-    Trainer,
-    TrainingArguments,
+    get_linear_schedule_with_warmup,
 )
 
 try:
@@ -196,6 +196,90 @@ class SFTDataCollator:
         }
 
 
+def move_batch_to_model_device(batch: Dict[str, torch.Tensor], model) -> Dict[str, torch.Tensor]:
+    device = next(model.parameters()).device
+    return {k: v.to(device) for k, v in batch.items()}
+
+
+def save_model_and_tokenizer(model, tokenizer, save_dir: Path) -> None:
+    save_dir.mkdir(parents=True, exist_ok=True)
+    model.save_pretrained(str(save_dir))
+    tokenizer.save_pretrained(str(save_dir))
+
+
+def run_manual_training_loop(
+    model,
+    tokenizer,
+    train_dataset,
+    collator: SFTDataCollator,
+    args: argparse.Namespace,
+    output_dir: Path,
+) -> None:
+    dataloader = DataLoader(
+        train_dataset,
+        batch_size=args.per_device_train_batch_size,
+        shuffle=True,
+        collate_fn=collator,
+    )
+
+    optimizer = torch.optim.AdamW(
+        (p for p in model.parameters() if p.requires_grad),
+        lr=args.learning_rate,
+    )
+
+    steps_per_epoch = math.ceil(len(dataloader) / max(args.gradient_accumulation_steps, 1))
+    total_steps = int(args.max_steps) if args.max_steps and args.max_steps > 0 else max(
+        1, int(steps_per_epoch * args.num_train_epochs)
+    )
+    warmup_steps = int(total_steps * args.warmup_ratio)
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=warmup_steps,
+        num_training_steps=total_steps,
+    )
+
+    model.train()
+    global_step = 0
+    running_loss = 0.0
+    optimizer.zero_grad(set_to_none=True)
+
+    for epoch in range(max(1, math.ceil(args.num_train_epochs))):
+        for step, batch in enumerate(dataloader, start=1):
+            batch = move_batch_to_model_device(batch, model)
+            outputs = model(**batch)
+            loss = outputs.loss / max(args.gradient_accumulation_steps, 1)
+            loss.backward()
+            running_loss += loss.item()
+
+            if step % args.gradient_accumulation_steps == 0:
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad(set_to_none=True)
+                global_step += 1
+
+                if global_step % args.logging_steps == 0:
+                    print(
+                        f"[train] epoch={epoch + 1} step={global_step}/{total_steps} "
+                        f"loss={running_loss / args.logging_steps:.4f}"
+                    )
+                    running_loss = 0.0
+
+                if global_step % args.save_steps == 0:
+                    ckpt_dir = output_dir / f"checkpoint-{global_step}"
+                    save_model_and_tokenizer(model, tokenizer, ckpt_dir)
+                    print(f"[train] saved checkpoint to {ckpt_dir}")
+
+                if global_step >= total_steps:
+                    final_dir = output_dir / "final"
+                    save_model_and_tokenizer(model, tokenizer, final_dir)
+                    print(f"[train] saved final checkpoint to {final_dir}")
+                    return
+
+    final_dir = output_dir / "final"
+    save_model_and_tokenizer(model, tokenizer, final_dir)
+    print(f"[train] saved final checkpoint to {final_dir}")
+
+
 def maybe_wrap_lora(model, args: argparse.Namespace):
     if not args.use_lora:
         return model
@@ -292,33 +376,14 @@ def run_training(args: argparse.Namespace) -> None:
             model.to("cpu")
     model = maybe_wrap_lora(model, args)
 
-    training_args = TrainingArguments(
-        output_dir=str(output_dir),
-        per_device_train_batch_size=args.per_device_train_batch_size,
-        gradient_accumulation_steps=args.gradient_accumulation_steps,
-        learning_rate=args.learning_rate,
-        num_train_epochs=args.num_train_epochs,
-        logging_steps=args.logging_steps,
-        save_steps=args.save_steps,
-        warmup_ratio=args.warmup_ratio,
-        max_steps=args.max_steps,
-        bf16=torch.cuda.is_available(),
-        fp16=False,
-        report_to=[] if args.report_to == "none" else [args.report_to],
-        remove_unused_columns=False,
-        dataloader_num_workers=0,
-    )
-
-    trainer = Trainer(
+    run_manual_training_loop(
         model=model,
-        args=training_args,
-        train_dataset=train_dataset,
-        data_collator=collator,
         tokenizer=tokenizer,
+        train_dataset=train_dataset,
+        collator=collator,
+        args=args,
+        output_dir=output_dir,
     )
-    trainer.train()
-    trainer.save_model(str(output_dir / "final"))
-    tokenizer.save_pretrained(str(output_dir / "final"))
 
 
 def main() -> None:
