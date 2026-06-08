@@ -38,7 +38,7 @@ Trên máy ảo:
 
 ```bash
 git clone <your-repo-url>
-cd empathy_mh_gemma
+cd multimodal-empathy-mental-health
 ```
 
 Hoặc copy thẳng thư mục code lên máy.
@@ -246,4 +246,3 @@ Máy ảo / cloud GPU là nơi phù hợp để:
 Trong khi Kaggle chỉ nên là:
 
 - chỗ test đường ống
-
