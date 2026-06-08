@@ -105,15 +105,12 @@ login("YOUR_HF_TOKEN")
 Sau đó test nhanh:
 
 ```python
-from transformers.models.gemma4 import Gemma4Config
-from transformers import AutoProcessor
+from transformers import AutoTokenizer
 
-print("Gemma4Config import ok:", Gemma4Config.__name__)
-processor = AutoProcessor.from_pretrained("google/gemma-4-26B-A4B-it", token=True)
-tokenizer = getattr(processor, "tokenizer", None)
-if tokenizer is not None and tokenizer.pad_token is None:
+tokenizer = AutoTokenizer.from_pretrained("google/gemma-4-26B-A4B-it", token=True)
+if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
-print(type(processor).__name__, tokenizer.pad_token if tokenizer else None, tokenizer.eos_token if tokenizer else None)
+print(type(tokenizer).__name__, tokenizer.pad_token, tokenizer.eos_token)
 ```
 
 Nếu bước này fail, dừng lại luôn và sửa quyền / token trước.

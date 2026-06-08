@@ -11,7 +11,7 @@ import torch
 from torch.utils.data import ConcatDataset, DataLoader
 from transformers import (
     AutoModelForImageTextToText,
-    AutoProcessor,
+    AutoTokenizer,
     BitsAndBytesConfig,
     get_linear_schedule_with_warmup,
 )
@@ -341,11 +341,9 @@ def run_training(args: argparse.Namespace) -> None:
         print(f"Saved example prompts to {output_dir / 'example_prompts.json'}")
         return
 
-    processor = AutoProcessor.from_pretrained(args.model_name_or_path)
-    tokenizer = getattr(processor, "tokenizer", processor)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    prompt_builder.processor = processor
     prompt_builder.tokenizer = tokenizer
 
     train_dataset = SupervisedTask1Dataset(

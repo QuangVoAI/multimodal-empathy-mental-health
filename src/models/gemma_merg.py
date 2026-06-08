@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 import torch
 from transformers import (
     AutoModelForImageTextToText,
-    AutoProcessor,
+    AutoTokenizer,
     BitsAndBytesConfig,
 )
 
@@ -64,8 +64,7 @@ class GemmaMERG:
         self.torch_dtype = torch_dtype or (torch.bfloat16 if self.device == "cuda" else torch.float32)
         self.load_in_4bit = load_in_4bit
 
-        self.processor = AutoProcessor.from_pretrained(model_name_or_path)
-        self.tokenizer = getattr(self.processor, "tokenizer", self.processor)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
