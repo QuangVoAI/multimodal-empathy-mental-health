@@ -83,11 +83,13 @@ Trong một cell đầu:
 ```bash
 !git clone https://github.com/QuangVoAI/multimodal-empathy-mental-health.git
 %cd /kaggle/working/multimodal-empathy-mental-health
-%pip uninstall -y datasets transformers huggingface_hub accelerate peft bitsandbytes sentencepiece tokenizers
+%pip uninstall -y datasets transformers huggingface_hub accelerate peft bitsandbytes sentencepiece tokenizers torchvision
 %pip install --no-cache-dir --force-reinstall -r requirements_kaggle.txt
 ```
 
 Khong can cai lai `torch` tren Kaggle. Muc tieu la giu nguyen bo `torch/CUDA` da co san cua Kaggle, chi cap nhat cac package Hugging Face can cho Gemma.
+
+Notebook Task 1 khong can `torchvision`. Tren Kaggle, `torchvision` preinstalled doi khi lech version voi `torch` va gay loi import `torchvision::nms`, nen minh chu dong go no ra khoi train flow.
 
 Sau cell cài package, **restart kernel / session ngay** rồi mới chạy tiếp từ cell đăng nhập Hugging Face. Nếu không, Kaggle có thể giữ lại module cũ trong bộ nhớ và gây lỗi import lệch version.
 
