@@ -98,6 +98,8 @@ Dong cai `transformers>=5.10.2` o cuoi la co chu y. `unsloth/gemma-4-12b-it` dun
 
 Notebook Task 1 khong can `torchvision`. Tren Kaggle, `torchvision` preinstalled doi khi lech version voi `torch` va gay loi import `torchvision::nms`, nen minh chu dong go no ra khoi train flow.
 
+Neu ban quay lai notebook Transformers thuong, repo pin `bitsandbytes==0.47.0` cho Kaggle vi nhanh `0.48.x` da them CUDA 13 support, trong khi runtime Kaggle cua ban dang va vao loi `libnvJitLink.so.13`.
+
 Sau cell cài package, **restart kernel / session ngay** rồi mới chạy tiếp từ cell đăng nhập Hugging Face. Nếu không, Kaggle có thể giữ lại module cũ trong bộ nhớ và gây lỗi import lệch version.
 
 Notebook chinh:
