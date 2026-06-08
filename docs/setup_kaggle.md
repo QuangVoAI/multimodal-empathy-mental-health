@@ -87,7 +87,7 @@ Trong một cell đầu:
 ```bash
 !git clone https://github.com/QuangVoAI/multimodal-empathy-mental-health.git
 %cd /kaggle/working/multimodal-empathy-mental-health
-%pip uninstall -y datasets transformers huggingface_hub accelerate peft bitsandbytes sentencepiece tokenizers torchvision unsloth unsloth_zoo trl
+%pip uninstall -y datasets transformers huggingface_hub accelerate peft bitsandbytes sentencepiece tokenizers torchvision unsloth unsloth_zoo trl Pillow
 %pip install --no-cache-dir --force-reinstall -r requirements_kaggle_unsloth.txt
 ```
 
@@ -119,9 +119,10 @@ from huggingface_hub import login
 login("YOUR_HF_TOKEN")
 ```
 
-Sau do test nhanh theo duong Unsloth:
+Sau do test nhanh theo duong Unsloth. Nho `import unsloth` truoc `transformers`:
 
 ```python
+import unsloth
 from unsloth import FastLanguageModel
 
 model, tokenizer = FastLanguageModel.from_pretrained(
