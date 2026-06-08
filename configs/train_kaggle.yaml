@@ -1,0 +1,11 @@
+output_dir: outputs/sft/joint_lora
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 8
+learning_rate: 2e-4
+num_train_epochs: 1
+logging_steps: 10
+save_steps: 100
+warmup_ratio: 0.03
+max_steps: -1
+report_to: none
+

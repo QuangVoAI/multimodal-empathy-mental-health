@@ -1,0 +1,11 @@
+torch>=2.4
+transformers>=4.57.0
+datasets>=4.0.0
+accelerate>=1.10.0
+peft>=0.17.0
+sentencepiece>=0.2.0
+huggingface_hub>=0.34.0
+safetensors>=0.6.0
+pyyaml>=6.0.2
+tqdm>=4.67.0
+bitsandbytes>=0.48.0

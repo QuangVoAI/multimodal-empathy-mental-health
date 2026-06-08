@@ -1,0 +1,5 @@
+avamerg_root: data/raw/avamerg
+avamerg_split: train
+avamerg_text_only: true
+esconv_json: data/raw/esconv/ESConv.json
+
