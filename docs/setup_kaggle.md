@@ -82,6 +82,7 @@ Trong một cell đầu:
 
 ```bash
 %cd /kaggle/working/empathy_mh_gemma
+%pip uninstall -y datasets
 %pip install --upgrade pip setuptools wheel
 %pip install --no-cache-dir --force-reinstall -r requirements.txt
 ```

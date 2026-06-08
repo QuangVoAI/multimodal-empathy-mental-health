@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.data import AvaMERGDataset, ESConvDataset, MentalChat16KDataset  # noqa: E402
+from src.data import AvaMERGDataset, ESConvDataset  # noqa: E402
 from src.models.gemma_merg import GemmaMERG  # noqa: E402
 
 
@@ -47,6 +47,8 @@ def load_dataset_from_args(args: argparse.Namespace):
         if not args.esconv_json:
             raise ValueError("--esconv_json is required when --dataset esconv")
         return ESConvDataset(args.esconv_json)
+    from src.data.mentalchat16k_dataset import MentalChat16KDataset  # noqa: E402
+
     return MentalChat16KDataset(
         dataset_name=args.mentalchat16k_name,
         split=args.mentalchat16k_split,
