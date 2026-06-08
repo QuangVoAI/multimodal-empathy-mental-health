@@ -82,11 +82,13 @@ Trong một cell đầu:
 
 ```bash
 %cd /kaggle/working/empathy_mh_gemma
-!python -m pip install --upgrade pip
-!pip install -r requirements.txt
+%pip install --upgrade pip setuptools wheel
+%pip install --no-cache-dir --force-reinstall -r requirements.txt
 ```
 
 Nếu Kaggle đang dùng Python khác `3.10`, điều đó vẫn có thể ổn miễn là `torch` và `transformers` cài được.
+
+Sau cell cài package, **restart kernel / session ngay** rồi mới chạy tiếp từ cell đăng nhập Hugging Face. Nếu không, Kaggle có thể giữ lại module cũ trong bộ nhớ và gây lỗi import lệch version.
 
 ---
 
