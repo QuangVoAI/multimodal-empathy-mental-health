@@ -20,9 +20,10 @@ from transformers import (
 )
 
 try:
-    from peft import LoraConfig, TaskType, get_peft_model
+    from peft import LoraConfig, PeftModel, TaskType, get_peft_model
 except ImportError:  # pragma: no cover
     LoraConfig = None
+    PeftModel = None
     TaskType = None
     get_peft_model = None
 
@@ -62,6 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dump_example_prompts", action="store_true")
     parser.add_argument("--max_train_samples", type=int, default=None)
     parser.add_argument("--gradient_checkpointing", action="store_true")
+    parser.add_argument("--resume_from_checkpoint", type=str, default=None)
+    parser.add_argument("--seed", type=int, default=42)
     return parser
 
 
@@ -252,6 +255,61 @@ def append_jsonl(path: Path, record: Dict[str, Any]) -> None:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def save_training_state(
+    checkpoint_dir: Path,
+    optimizer,
+    scheduler,
+    global_step: int,
+    epoch_index: int,
+    next_batch_in_epoch: int,
+    train_start_time: float,
+    epoch_generator_state,
+) -> None:
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "optimizer": optimizer.state_dict(),
+            "scheduler": scheduler.state_dict(),
+            "global_step": global_step,
+            "epoch_index": epoch_index,
+            "next_batch_in_epoch": next_batch_in_epoch,
+            "elapsed_sec": time.time() - train_start_time,
+            "epoch_generator_state": epoch_generator_state,
+        },
+        checkpoint_dir / "trainer_state.pt",
+    )
+
+
+def load_training_state(checkpoint_dir: Path):
+    state_path = checkpoint_dir / "trainer_state.pt"
+    if not state_path.exists():
+        raise FileNotFoundError(f"Training state not found: {state_path}")
+    return torch.load(state_path, map_location="cpu")
+
+
+def mark_latest_checkpoint(output_dir: Path, checkpoint_dir: Path) -> None:
+    (output_dir / "last_checkpoint.txt").write_text(str(checkpoint_dir.resolve()), encoding="utf-8")
+
+
+def resolve_checkpoint_path(resume_from_checkpoint: str | None, output_dir: Path) -> Path | None:
+    if resume_from_checkpoint:
+        return Path(resume_from_checkpoint)
+    latest_file = output_dir / "last_checkpoint.txt"
+    if latest_file.exists():
+        return Path(latest_file.read_text(encoding="utf-8").strip())
+    return None
+
+
+def build_dataloader(train_dataset, collator: SFTDataCollator, args: argparse.Namespace, generator) -> DataLoader:
+    return DataLoader(
+        train_dataset,
+        batch_size=args.per_device_train_batch_size,
+        shuffle=True,
+        collate_fn=collator,
+        generator=generator,
+    )
+
+
 def run_manual_training_loop(
     model,
     tokenizer,
@@ -261,18 +319,14 @@ def run_manual_training_loop(
     args: argparse.Namespace,
     output_dir: Path,
 ) -> None:
-    dataloader = DataLoader(
-        train_dataset,
-        batch_size=args.per_device_train_batch_size,
-        shuffle=True,
-        collate_fn=collator,
-    )
-
     optimizer = torch.optim.AdamW(
         (p for p in model.parameters() if p.requires_grad),
         lr=args.learning_rate,
     )
 
+    generator = torch.Generator()
+    generator.manual_seed(args.seed)
+    dataloader = build_dataloader(train_dataset, collator, args, generator)
     steps_per_epoch = math.ceil(len(dataloader) / max(args.gradient_accumulation_steps, 1))
     total_steps = int(args.max_steps) if args.max_steps and args.max_steps > 0 else max(
         1, int(steps_per_epoch * args.num_train_epochs)
@@ -292,10 +346,41 @@ def run_manual_training_loop(
     optimizer.zero_grad(set_to_none=True)
     train_start_time = time.time()
     progress = tqdm(total=total_steps, desc="train", dynamic_ncols=True)
+    resume_epoch_index = 0
+    resume_batch_in_epoch = 0
+    epoch_generator_state = generator.get_state()
+
+    checkpoint_path = resolve_checkpoint_path(args.resume_from_checkpoint, output_dir)
+    if checkpoint_path is not None:
+        train_state = load_training_state(checkpoint_path)
+        optimizer.load_state_dict(train_state["optimizer"])
+        scheduler.load_state_dict(train_state["scheduler"])
+        global_step = int(train_state["global_step"])
+        resume_epoch_index = int(train_state["epoch_index"])
+        resume_batch_in_epoch = int(train_state["next_batch_in_epoch"])
+        train_start_time = time.time() - float(train_state.get("elapsed_sec", 0.0))
+        epoch_generator_state = train_state["epoch_generator_state"]
+        progress.update(global_step)
+        print(
+            f"[resume] checkpoint={checkpoint_path} epoch={resume_epoch_index + 1} "
+            f"next_batch={resume_batch_in_epoch} global_step={global_step}/{total_steps}"
+        )
 
     try:
-        for epoch in range(max(1, math.ceil(args.num_train_epochs))):
-            for step, batch in enumerate(dataloader, start=1):
+        for epoch in range(resume_epoch_index, max(1, math.ceil(args.num_train_epochs))):
+            generator.set_state(epoch_generator_state)
+            epoch_generator_state = generator.get_state()
+            dataloader = build_dataloader(train_dataset, collator, args, generator)
+            batch_iterator = iter(dataloader)
+
+            if epoch == resume_epoch_index and resume_batch_in_epoch > 0:
+                for _ in range(resume_batch_in_epoch):
+                    try:
+                        next(batch_iterator)
+                    except StopIteration:
+                        break
+
+            for step, batch in enumerate(batch_iterator, start=resume_batch_in_epoch + 1 if epoch == resume_epoch_index else 1):
                 batch = move_batch_to_model_device(batch, model)
                 outputs = model(**batch)
                 loss = outputs.loss / max(args.gradient_accumulation_steps, 1)
@@ -352,6 +437,17 @@ def run_manual_training_loop(
                     if global_step % args.save_steps == 0:
                         ckpt_dir = output_dir / f"checkpoint-{global_step}"
                         save_model_and_tokenizer(model, tokenizer, ckpt_dir, processor=processor)
+                        save_training_state(
+                            ckpt_dir,
+                            optimizer=optimizer,
+                            scheduler=scheduler,
+                            global_step=global_step,
+                            epoch_index=epoch,
+                            next_batch_in_epoch=step,
+                            train_start_time=train_start_time,
+                            epoch_generator_state=epoch_generator_state,
+                        )
+                        mark_latest_checkpoint(output_dir, ckpt_dir)
                         print(f"[train] saved checkpoint to {ckpt_dir}")
 
                     if global_step >= total_steps:
@@ -368,6 +464,7 @@ def run_manual_training_loop(
                         )
                         print(f"[train] saved final checkpoint to {final_dir}")
                         return
+            resume_batch_in_epoch = 0
     finally:
         progress.close()
 
@@ -390,6 +487,13 @@ def maybe_wrap_lora(model, args: argparse.Namespace):
         return model
     if get_peft_model is None:
         raise ImportError("peft is not installed but --use_lora was requested.")
+    checkpoint_path = Path(args.resume_from_checkpoint) if args.resume_from_checkpoint else None
+    if checkpoint_path and (checkpoint_path / "adapter_config.json").exists():
+        if PeftModel is None:
+            raise ImportError("peft is required to resume a LoRA checkpoint.")
+        model = PeftModel.from_pretrained(model, str(checkpoint_path), is_trainable=True)
+        model.print_trainable_parameters()
+        return model
 
     # Gemma 4 wraps quantized linears inside Gemma4ClippableLinear, so LoRA
     # has to target the inner `.linear` modules instead of the wrapper.
