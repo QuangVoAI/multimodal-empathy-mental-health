@@ -1,0 +1,8 @@
+model_name_or_path: google/gemma-4-E4B-it
+load_in_4bit: true
+use_lora: true
+lora_r: 4
+lora_alpha: 8
+lora_dropout: 0.05
+max_length: 256
+max_response_tokens: 64
