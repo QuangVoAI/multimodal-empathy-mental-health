@@ -299,13 +299,23 @@ def maybe_wrap_lora(model, args: argparse.Namespace):
     if get_peft_model is None:
         raise ImportError("peft is not installed but --use_lora was requested.")
 
+    # Gemma 4 wraps quantized linears inside Gemma4ClippableLinear, so LoRA
+    # has to target the inner `.linear` modules instead of the wrapper.
     peft_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
         inference_mode=False,
         r=args.lora_r,
         lora_alpha=args.lora_alpha,
         lora_dropout=args.lora_dropout,
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+        target_modules=[
+            "q_proj.linear",
+            "k_proj.linear",
+            "v_proj.linear",
+            "o_proj.linear",
+            "gate_proj.linear",
+            "up_proj.linear",
+            "down_proj.linear",
+        ],
     )
     model = get_peft_model(model, peft_config)
     model.print_trainable_parameters()
