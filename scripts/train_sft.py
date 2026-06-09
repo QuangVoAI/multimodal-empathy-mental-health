@@ -8,8 +8,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import torch
-from torch.utils.data import ConcatDataset, DataLoader
+from torch.utils.data import ConcatDataset, DataLoader, Subset
 from transformers import (
+    AutoProcessor,
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
@@ -33,7 +34,7 @@ from src.models.gemma_merg import DEFAULT_SYSTEM_PROMPT, GemmaMERG  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="SFT scaffold for Gemma 4 12B Task 1")
+    parser = argparse.ArgumentParser(description="SFT scaffold for Task 1 on Gemma-family models")
     parser.add_argument("--model_name_or_path", type=str, required=True)
     parser.add_argument("--avamerg_root", type=str, default=None)
     parser.add_argument("--avamerg_split", type=str, default="train")
@@ -57,6 +58,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lora_dropout", type=float, default=0.05)
     parser.add_argument("--report_to", type=str, default="none")
     parser.add_argument("--dump_example_prompts", action="store_true")
+    parser.add_argument("--max_train_samples", type=int, default=None)
+    parser.add_argument("--gradient_checkpointing", action="store_true")
     return parser
 
 
@@ -78,7 +81,11 @@ def build_datasets(args: argparse.Namespace):
         datasets.append(ESConvDataset(args.esconv_json))
     if not datasets:
         raise ValueError("At least one dataset must be provided: --avamerg_root and/or --esconv_json")
-    return datasets[0] if len(datasets) == 1 else ConcatDataset(datasets)
+    combined = datasets[0] if len(datasets) == 1 else ConcatDataset(datasets)
+    if args.max_train_samples is not None:
+        sample_count = min(args.max_train_samples, len(combined))
+        combined = Subset(combined, range(sample_count))
+    return combined
 
 
 def build_response_target(response: str) -> str:
@@ -92,6 +99,7 @@ def build_user_prompt(prompt_builder: GemmaMERG, sample: Dict[str, Any]) -> str:
 def tokenize_supervised_sample(
     sample: Dict[str, Any],
     tokenizer,
+    chat_template_handler,
     prompt_builder: GemmaMERG,
     max_length: int,
 ) -> Dict[str, torch.Tensor]:
@@ -104,12 +112,12 @@ def tokenize_supervised_sample(
     ]
     full_messages = prompt_messages + [{"role": "assistant", "content": target_response}]
 
-    prompt_text = tokenizer.apply_chat_template(
+    prompt_text = chat_template_handler.apply_chat_template(
         prompt_messages,
         tokenize=False,
         add_generation_prompt=True,
     )
-    full_text = tokenizer.apply_chat_template(
+    full_text = chat_template_handler.apply_chat_template(
         full_messages,
         tokenize=False,
         add_generation_prompt=False,
@@ -144,11 +152,13 @@ class SupervisedTask1Dataset(torch.utils.data.Dataset):
         self,
         base_dataset,
         tokenizer,
+        chat_template_handler,
         prompt_builder: GemmaMERG,
         max_length: int,
     ) -> None:
         self.base_dataset = base_dataset
         self.tokenizer = tokenizer
+        self.chat_template_handler = chat_template_handler
         self.prompt_builder = prompt_builder
         self.max_length = max_length
 
@@ -160,6 +170,7 @@ class SupervisedTask1Dataset(torch.utils.data.Dataset):
         return tokenize_supervised_sample(
             sample=sample,
             tokenizer=self.tokenizer,
+            chat_template_handler=self.chat_template_handler,
             prompt_builder=self.prompt_builder,
             max_length=self.max_length,
         )
@@ -195,15 +206,18 @@ def move_batch_to_model_device(batch: Dict[str, torch.Tensor], model) -> Dict[st
     return {k: v.to(device) for k, v in batch.items()}
 
 
-def save_model_and_tokenizer(model, tokenizer, save_dir: Path) -> None:
+def save_model_and_tokenizer(model, tokenizer, save_dir: Path, processor=None) -> None:
     save_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(str(save_dir))
     tokenizer.save_pretrained(str(save_dir))
+    if processor is not None and hasattr(processor, "save_pretrained"):
+        processor.save_pretrained(str(save_dir))
 
 
 def run_manual_training_loop(
     model,
     tokenizer,
+    processor,
     train_dataset,
     collator: SFTDataCollator,
     args: argparse.Namespace,
@@ -235,6 +249,7 @@ def run_manual_training_loop(
     model.train()
     global_step = 0
     running_loss = 0.0
+    accumulation_counter = 0
     optimizer.zero_grad(set_to_none=True)
 
     for epoch in range(max(1, math.ceil(args.num_train_epochs))):
@@ -244,12 +259,16 @@ def run_manual_training_loop(
             loss = outputs.loss / max(args.gradient_accumulation_steps, 1)
             loss.backward()
             running_loss += loss.item()
+            accumulation_counter += 1
 
-            if step % args.gradient_accumulation_steps == 0:
+            is_accumulation_boundary = accumulation_counter >= max(args.gradient_accumulation_steps, 1)
+            is_last_batch = step == len(dataloader)
+            if is_accumulation_boundary or is_last_batch:
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad(set_to_none=True)
                 global_step += 1
+                accumulation_counter = 0
 
                 if global_step % args.logging_steps == 0:
                     print(
@@ -260,17 +279,17 @@ def run_manual_training_loop(
 
                 if global_step % args.save_steps == 0:
                     ckpt_dir = output_dir / f"checkpoint-{global_step}"
-                    save_model_and_tokenizer(model, tokenizer, ckpt_dir)
+                    save_model_and_tokenizer(model, tokenizer, ckpt_dir, processor=processor)
                     print(f"[train] saved checkpoint to {ckpt_dir}")
 
                 if global_step >= total_steps:
                     final_dir = output_dir / "final"
-                    save_model_and_tokenizer(model, tokenizer, final_dir)
+                    save_model_and_tokenizer(model, tokenizer, final_dir, processor=processor)
                     print(f"[train] saved final checkpoint to {final_dir}")
                     return
 
     final_dir = output_dir / "final"
-    save_model_and_tokenizer(model, tokenizer, final_dir)
+    save_model_and_tokenizer(model, tokenizer, final_dir, processor=processor)
     print(f"[train] saved final checkpoint to {final_dir}")
 
 
@@ -293,12 +312,43 @@ def maybe_wrap_lora(model, args: argparse.Namespace):
     return model
 
 
-def load_trainable_model(model_name_or_path: str, load_in_4bit: bool = False):
+def load_tokenizer_and_chat_template_handler(model_name_or_path: str):
+    processor = None
+    chat_template_handler = None
+    try:
+        processor = AutoProcessor.from_pretrained(model_name_or_path)
+        if hasattr(processor, "apply_chat_template"):
+            chat_template_handler = processor
+    except Exception:
+        processor = None
+
+    tokenizer = getattr(processor, "tokenizer", None)
+    if tokenizer is None:
+        tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    if chat_template_handler is None:
+        chat_template_handler = tokenizer
+
+    return tokenizer, chat_template_handler, processor
+
+
+def load_trainable_model(
+    model_name_or_path: str,
+    load_in_4bit: bool = False,
+    gradient_checkpointing: bool = False,
+):
     load_kwargs = {
-        "dtype": torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+        "torch_dtype": torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+        "low_cpu_mem_usage": True,
     }
     if torch.cuda.is_available():
-        load_kwargs["device_map"] = "auto"
+        if torch.cuda.device_count() == 1:
+            load_kwargs["device_map"] = {"": 0}
+        else:
+            load_kwargs["device_map"] = "auto"
         if load_in_4bit:
             load_kwargs["quantization_config"] = BitsAndBytesConfig(
                 load_in_4bit=True,
@@ -307,7 +357,14 @@ def load_trainable_model(model_name_or_path: str, load_in_4bit: bool = False):
                 bnb_4bit_use_double_quant=True,
             )
 
-    return AutoModelForCausalLM.from_pretrained(model_name_or_path, **load_kwargs)
+    model = AutoModelForCausalLM.from_pretrained(model_name_or_path, **load_kwargs)
+    if gradient_checkpointing:
+        model.gradient_checkpointing_enable()
+        if hasattr(model, "enable_input_require_grads"):
+            model.enable_input_require_grads()
+    if hasattr(model.config, "use_cache"):
+        model.config.use_cache = False
+    return model
 
 
 def dump_example_prompts(dataset, prompt_builder: GemmaMERG, output_dir: Path, num_examples: int = 3) -> None:
@@ -330,6 +387,8 @@ def dump_example_prompts(dataset, prompt_builder: GemmaMERG, output_dir: Path, n
 def run_training(args: argparse.Namespace) -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    with (output_dir / "train_args.json").open("w", encoding="utf-8") as f:
+        json.dump(vars(args), f, ensure_ascii=False, indent=2)
 
     base_dataset = build_datasets(args)
 
@@ -341,20 +400,24 @@ def run_training(args: argparse.Namespace) -> None:
         print(f"Saved example prompts to {output_dir / 'example_prompts.json'}")
         return
 
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer, chat_template_handler, processor = load_tokenizer_and_chat_template_handler(args.model_name_or_path)
     prompt_builder.tokenizer = tokenizer
+    prompt_builder.chat_template_handler = chat_template_handler
 
     train_dataset = SupervisedTask1Dataset(
         base_dataset=base_dataset,
         tokenizer=tokenizer,
+        chat_template_handler=chat_template_handler,
         prompt_builder=prompt_builder,
         max_length=args.max_length,
     )
     collator = SFTDataCollator(tokenizer)
 
-    model = load_trainable_model(args.model_name_or_path, load_in_4bit=args.load_in_4bit)
+    model = load_trainable_model(
+        args.model_name_or_path,
+        load_in_4bit=args.load_in_4bit,
+        gradient_checkpointing=args.gradient_checkpointing,
+    )
     if not torch.cuda.is_available():
         if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             model.to("mps")
@@ -365,6 +428,7 @@ def run_training(args: argparse.Namespace) -> None:
     run_manual_training_loop(
         model=model,
         tokenizer=tokenizer,
+        processor=processor,
         train_dataset=train_dataset,
         collator=collator,
         args=args,

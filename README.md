@@ -1,16 +1,60 @@
 # multimodal-empathy-mental-health
 
-Public research repo for **Task 1**: empathetic and safety-aware response generation for mental health-oriented dialogue using:
+Public research repo for **Task 1**: empathetic and safety-aware response generation for mental-health-oriented dialogue.
+
+Current research setup:
 
 - **Train / adapt:** `AvaMERG + ESConv`
 - **Eval:** `MentalChat16K`
-- **Main training model:** `google/gemma-4-12B-it`
+- **Main training path:** `google/gemma-4-26B-A4B-it`
+- **Target infra:** `Vast.ai / RTX A6000 48GB`
 
-This repo is designed to be **Kaggle-first**:
+## Main entrypoints
 
-- the main entrypoint is a Kaggle notebook
-- training code lives in importable Python modules
-- the project layout stays clean enough for longer-term research work
+Notebook:
+
+- [task1_gemma26b_a4b_it_vast_train.ipynb](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/task1_gemma26b_a4b_it_vast_train.ipynb>)
+- [notebooks/task1_gemma26b_a4b_it_vast_train.ipynb](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/notebooks/task1_gemma26b_a4b_it_vast_train.ipynb>)
+
+CLI:
+
+- [scripts/start_gemma26b_a4b_it_vast.sh](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/scripts/start_gemma26b_a4b_it_vast.sh>)
+- [scripts/train_sft.py](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/scripts/train_sft.py>)
+
+## What the repo supports now
+
+- unified dataset loading for `AvaMERG` and `ESConv`
+- prompt construction for supportive mental-health dialogue
+- `4-bit + LoRA` SFT scaffold for Gemma-family models
+- prompt dump before training
+- smoke-test training path on a small sample slice
+- checkpoint upload to Hugging Face Hub
+
+## Recommended workflow
+
+1. Clone repo on a Vast A6000 instance
+2. Run [environment_setup.sh](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/environment_setup.sh>)
+3. Login Hugging Face
+4. Download `AvaMERG` and `ESConv`
+5. Run prompt dump
+6. Run smoke test
+7. Run full training
+8. Upload `outputs/sft/<run_name>/final` to Hugging Face
+
+## Quick start
+
+```bash
+git clone https://github.com/QuangVoAI/multimodal-empathy-mental-health.git
+cd multimodal-empathy-mental-health
+bash environment_setup.sh
+source .venv310/bin/activate
+hf auth login
+bash scripts/download_avamerg.sh
+bash scripts/download_esconv.sh
+bash scripts/start_gemma26b_a4b_it_vast.sh dump
+bash scripts/start_gemma26b_a4b_it_vast.sh smoke
+bash scripts/start_gemma26b_a4b_it_vast.sh train
+```
 
 ## Repo structure
 
@@ -18,96 +62,29 @@ This repo is designed to be **Kaggle-first**:
 multimodal-empathy-mental-health/
 ├── README.md
 ├── requirements.txt
-├── requirements_kaggle.txt
-├── requirements_kaggle_unsloth.txt
 ├── environment_setup.sh
-├── .gitignore
 ├── configs/
 ├── data/
-│   ├── raw/
-│   └── processed/
 ├── docs/
-│   ├── runbook.md
-│   ├── setup_kaggle.md
-│   └── setup_vm.md
 ├── notebooks/
-│   └── task1_gemma12b_train.ipynb
 ├── outputs/
 ├── scripts/
-│   ├── train_sft.py
-│   ├── kaggle_first_run.sh
-│   ├── download_avamerg.sh
-│   └── download_esconv.sh
 └── src/
-    ├── data/
-    └── models/
 ```
 
-## What this repo currently supports
+## Important docs
 
-- unified dataset loading for `AvaMERG` and `ESConv`
-- prompt construction for `Gemma 4 12B`
-- importable Transformers + LoRA SFT scaffold
-- experimental Unsloth notebook kept for comparison
-- prompt dump before training
-- smoke-test training path
-
-## Recommended workflow
-
-1. Open the main notebook:
-   - [notebooks/task1_gemma12b_train.ipynb](notebooks/task1_gemma12b_train.ipynb)
-2. Login to Hugging Face
-3. Download `AvaMERG` and `ESConv`
-4. Dump prompts and inspect them
-5. Run a `max_steps=1` smoke test
-6. Launch `4-bit + LoRA` training with `google/gemma-4-12B-it`
-
-## Kaggle-first bootstrap
-
-In a fresh Kaggle notebook, you can start with:
-
-```bash
-!git clone <YOUR_GITHUB_REPO_URL>
-%cd multimodal-empathy-mental-health
-!bash environment_setup.sh
-```
-
-Then download the datasets:
-
-```bash
-!bash scripts/download_avamerg.sh
-!bash scripts/download_esconv.sh
-```
-
-## Main notebook
-
-- [notebooks/task1_gemma12b_train.ipynb](notebooks/task1_gemma12b_train.ipynb)
-
-Notebook hien tai imports and calls `run_training(...)` from:
-
-- [scripts/train_sft.py](scripts/train_sft.py)
-
-Experimental notebook:
-
-- [notebooks/task1_gemma12b_unsloth_train.ipynb](notebooks/task1_gemma12b_unsloth_train.ipynb)
-
-## Setup docs
-
-- Kaggle: [docs/setup_kaggle.md](docs/setup_kaggle.md)
-- Start training checklist: [docs/start_training_gemma12b_it.md](docs/start_training_gemma12b_it.md)
-- VM / cloud GPU: [docs/setup_vm.md](docs/setup_vm.md)
-- General runbook: [docs/runbook.md](docs/runbook.md)
-- Post-training pipeline: [docs/post_training_pipeline.md](docs/post_training_pipeline.md)
-- Hugging Face publish notes: [docs/hf_publish_checklist.md](docs/hf_publish_checklist.md)
+- [docs/runbook.md](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/docs/runbook.md>)
+- [docs/vast_a6000_gemma26b_a4b_it.md](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/docs/vast_a6000_gemma26b_a4b_it.md>)
+- [docs/setup_vm.md](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/docs/setup_vm.md>)
+- [docs/post_training_pipeline.md](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/docs/post_training_pipeline.md>)
+- [docs/hf_publish_checklist.md](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/docs/hf_publish_checklist.md>)
 
 ## Notes
 
-- `AvaMERG` is used as the **multimodal core dataset**
-- `ESConv` is used as the **support-strategy dataset**
-- `MentalChat16K` is reserved for evaluation rather than early-stage training
-- this repo currently focuses on **Task 1 text response generation**
+- `AvaMERG` cung cap phan hoi dong cam va context affective
+- `ESConv` bo sung support strategy theo hoi thoai ho tro cam xuc
+- `MentalChat16K` duoc giu cho eval thay vi train
+- repo hien tap trung vao **text response generation** cho Task 1
 
-
-## Note on Unsloth
-
-The repo still keeps an experimental Unsloth notebook because Gemma 4 appears in Unsloth's public model catalog and there is a hosted `unsloth/gemma-4-12b-it` variant. But after repeated Kaggle runtime issues, the main supported training path in this repo is back to `google/gemma-4-12B-it` through the plain Transformers + LoRA scaffold.
+Kaggle va Unsloth notebooks cu van duoc giu lai nhu tai lieu tham khao, nhung duong chay duoc repo uu tien va da don lai la luong `Vast + Gemma 4 26B A4B-it`.

@@ -39,7 +39,16 @@ cd multimodal-empathy-mental-health
 ```bash
 bash environment_setup.sh
 source .venv310/bin/activate
+pip uninstall -y torch torchvision torchaudio bitsandbytes
+pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu128 torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1
+pip install --no-cache-dir bitsandbytes==0.47.0
+pip install -U git+https://github.com/huggingface/transformers.git
 ```
+
+Buoc cap nhat `transformers` tu GitHub la de tranh loi tokenizer/processor cua Gemma 4 trong mot so ban release cu. Hugging Face da co issue ve loi `AttributeError: 'list' object has no attribute 'keys'` khi doc `extra_special_tokens` cua Gemma 4 bang `transformers v4` cu.  
+Nguon: [Issue #45376](https://github.com/huggingface/transformers/issues/45376)
+
+Buoc reinstall `torch` + `bitsandbytes` la de tranh tinh trang moi truong keo ve torch CUDA `13.0`, sau do `bitsandbytes` di tim `libbitsandbytes_cuda130.so` va fail. A6000 trong luong nay duoc khoi tao theo stack `cu128` de on dinh hon.
 
 ## 4. Dang nhap Hugging Face
 
@@ -51,11 +60,13 @@ Test nhanh:
 
 ```bash
 python - <<'PY'
-from transformers import AutoTokenizer
-tok = AutoTokenizer.from_pretrained("google/gemma-4-26B-A4B-it", token=True)
-print("Tokenizer ok:", tok.__class__.__name__)
+from transformers import AutoProcessor
+processor = AutoProcessor.from_pretrained("google/gemma-4-26B-A4B-it")
+print("Processor ok:", processor.__class__.__name__)
 PY
 ```
+
+Gemma 4 26B A4B-it theo model card chinh thuc duoc khoi tao bang `AutoProcessor` va `AutoModelForCausalLM`, nen repo nay da duoc sua theo luong do thay vi gia dinh tokenizer-text-only.
 
 ## 5. Tai du lieu
 
@@ -88,6 +99,14 @@ bash scripts/start_gemma26b_a4b_it_vast.sh dump
 bash scripts/start_gemma26b_a4b_it_vast.sh smoke
 ```
 
+Smoke mode hien gioi han `16` sample va `1` optimizer step de kiem tra:
+
+- access model
+- tokenizer / processor
+- quantization
+- LoRA
+- save checkpoint
+
 ### 6.3 Train that
 
 ```bash
@@ -108,6 +127,7 @@ python scripts/train_sft.py \
   --output_dir outputs/sft/task1_gemma26b_a4b_it_vast \
   --load_in_4bit \
   --use_lora \
+  --gradient_checkpointing \
   --max_length 1024 \
   --max_response_tokens 192 \
   --per_device_train_batch_size 1 \
@@ -136,3 +156,9 @@ Giam theo thu tu:
 3. neu can nua, tat thoi chi dung `AvaMERG` de smoke
 
 Khong nen tang `max_length` ngay tu dau.
+
+## 10. Notebook VM
+
+Neu ban muon chay bang Jupyter notebook ngay tren may Vast, dung:
+
+- [task1_gemma26b_a4b_it_vast_train.ipynb](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/task1_gemma26b_a4b_it_vast_train.ipynb>)

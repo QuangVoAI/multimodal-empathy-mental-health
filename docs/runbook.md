@@ -1,420 +1,145 @@
 # Runbook
 
-## Mục tiêu
+Runbook này gom repo về một luồng chính để train `Task 1` trên `Vast.ai` với:
 
-Runbook này giúp chuyển từ:
+- model: `google/gemma-4-26B-A4B-it`
+- dữ liệu train: `AvaMERG + ESConv`
+- hạ tầng mục tiêu: `1x RTX A6000 48GB`
+- kiểu fine-tune: `4-bit + LoRA`
 
-- ý tưởng đề tài
-- scaffold code
-- prompt design
+Notebook chính:
 
-sang:
+- [task1_gemma26b_a4b_it_vast_train.ipynb](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/task1_gemma26b_a4b_it_vast_train.ipynb>)
 
-- đọc dữ liệu thật
-- kiểm tra prompt từ dữ liệu thật
-- chạy một vòng SFT nhỏ với `Gemma 4 12B`
+CLI tương đương:
 
-Trình tự được tối ưu cho **Task 1**.
+- [scripts/start_gemma26b_a4b_it_vast.sh](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/scripts/start_gemma26b_a4b_it_vast.sh>)
+- [scripts/train_sft.py](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/scripts/train_sft.py>)
 
----
+## 1. Chuẩn bị máy Vast
 
-## 0. Cấu trúc hiện tại
+Khuyến nghị instance:
 
-Thư mục code chính:
+- `RTX A6000 48GB`
+- CUDA `12.x`
+- Ubuntu `22.04`
+- ít nhất `150GB` disk trống
 
-- [empathy_mh_gemma](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/empathy_mh_gemma>)
-
-Các file quan trọng:
-
-- [prompt_design.md](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/prompt_design.md>)
-- [data_schema_examples.md](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/data_schema_examples.md>)
-- [train_sft.py](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/empathy_mh_gemma/scripts/train_sft.py>)
-- [avamerg_dataset.py](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/empathy_mh_gemma/src/data/avamerg_dataset.py>)
-- [esconv_dataset.py](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/empathy_mh_gemma/src/data/esconv_dataset.py>)
-- [gemma_merg.py](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/empathy_mh_gemma/src/models/gemma_merg.py>)
-
----
-
-## 1. Việc đầu tiên: đọc note trước khi chạy
-
-### 1.1 Đọc prompt design
-
-Đọc:
-
-- [prompt_design.md](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/prompt_design.md>)
-
-Mục tiêu:
-
-- chốt vai trò của model
-- chốt system prompt
-- chốt 3 baseline prompt
-
-### 1.2 Đọc mock schema examples
-
-Đọc:
-
-- [data_schema_examples.md](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/data_schema_examples.md>)
-
-Mục tiêu:
-
-- hình dung sample thật nên trông như thế nào
-- biết mình sẽ kiểm tra cái gì khi mở dữ liệu thật
-
----
-
-## 2. Chuẩn bị môi trường
-
-### 2.1 Tạo virtual environment
+## 2. Clone repo và tạo môi trường
 
 ```bash
-cd "/Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/empathy_mh_gemma"
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
+git clone https://github.com/QuangVoAI/multimodal-empathy-mental-health.git
+cd multimodal-empathy-mental-health
+bash environment_setup.sh
+source .venv310/bin/activate
 ```
 
-### 2.2 Cài package tối thiểu
+Nếu máy không có `python3.10`, script sẽ tự fallback sang `python3` hoặc `python`.
+
+## 3. Login Hugging Face
 
 ```bash
-pip install torch transformers datasets accelerate peft sentencepiece
-```
-
-### 2.3 Nếu muốn dùng Hugging Face CLI
-
-```bash
-pip install -U huggingface_hub
 hf auth login
 ```
 
----
-
-## 3. Tạo thư mục dữ liệu
+## 4. Tải dữ liệu
 
 ```bash
-mkdir -p data/raw/avamerg
-mkdir -p data/raw/esconv
-mkdir -p data/processed
-mkdir -p outputs/sft
+bash scripts/download_avamerg.sh
+bash scripts/download_esconv.sh
 ```
 
----
+Sau bước này cần có:
 
-## 4. Tải dữ liệu thật
+- `data/raw/avamerg/train.json`
+- `data/raw/esconv/ESConv.json`
 
-## 4.1 AvaMERG
-
-Ưu tiên tải:
-
-- `train.json`
-- `valid.json` hoặc `test.json`
-- một phần thư mục `audio`
-- một phần thư mục `video`
-
-Nếu dùng `hf`:
-
-```bash
-hf download ZhangHanXD/AvaMERG train.json --repo-type dataset --local-dir data/raw/avamerg
-hf download ZhangHanXD/AvaMERG valid.json --repo-type dataset --local-dir data/raw/avamerg
-```
-
-Nếu dataset card dùng tên split khác, hãy điều chỉnh theo file thật trên Hub.
-
-### Nếu muốn tải media sau
-
-Bạn có thể bắt đầu chỉ với:
-
-- `train.json`
-- `valid.json`
-
-và chạy baseline text-only trước.
-
-## 4.2 ESConv
-
-Tải repo hoặc file JSON thật của ESConv vào:
-
-```bash
-data/raw/esconv/
-```
-
-Ví dụ:
-
-```bash
-git clone https://github.com/thu-coai/Emotional-Support-Conversation.git /tmp/esconv_repo
-```
-
-Sau đó xác định file JSON cần dùng và copy vào:
-
-```bash
-cp /tmp/esconv_repo/path/to/your_split.json data/raw/esconv/
-```
-
-### Việc quan trọng
-
-Khi có file thật, mở nó ra ngay. `ESConvDataset` hiện là scaffold linh hoạt, nhưng gần như chắc chắn sẽ cần chỉnh nhẹ theo format thực.
-
----
-
-## 5. Kiểm tra dữ liệu thật bằng mắt
-
-## 5.1 Mở vài dòng của AvaMERG
+## 5. Kiểm tra model access
 
 ```bash
 python - <<'PY'
-import json
-from pathlib import Path
-
-p = Path("data/raw/avamerg/train.json")
-data = json.loads(p.read_text(encoding="utf-8"))
-print("Num samples:", len(data))
-print("Keys of first item:", data[0].keys())
-print("First conversation_id:", data[0].get("conversation_id"))
-print("Turn keys:", data[0]["turns"][-1].keys())
+from transformers import AutoProcessor
+processor = AutoProcessor.from_pretrained("google/gemma-4-26B-A4B-it")
+print("Processor ok:", processor.__class__.__name__)
 PY
 ```
 
-### Bạn cần kiểm tra
+Gemma 4 26B A4B-it là model instruction multimodal. Theo model card chính thức, luồng khởi tạo chuẩn dùng `AutoProcessor` và `AutoModelForCausalLM`.  
+Nguồn: [google/gemma-4-26B-A4B-it](https://huggingface.co/google/gemma-4-26B-A4B-it), [google/gemma-4-26B-A4B-it-assistant](https://huggingface.co/google/gemma-4-26B-A4B-it-assistant)
 
-- có đúng `turns[-1]` như scaffold đang giả định không
-- tên key `dialogue_history`, `response`, `chain_of_empathy` có đúng không
+## 6. Chạy theo đúng thứ tự
 
-## 5.2 Mở vài dòng của ESConv
+### 6.1 Dump prompt
 
 ```bash
-python - <<'PY'
-import json
-from pathlib import Path
-
-p = Path("data/raw/esconv/YOUR_FILE.json")
-data = json.loads(p.read_text(encoding="utf-8"))
-print(type(data))
-if isinstance(data, dict):
-    print("Top-level keys:", list(data.keys())[:20])
-elif isinstance(data, list):
-    print("Num items:", len(data))
-    print("First item keys:", data[0].keys() if isinstance(data[0], dict) else type(data[0]))
-PY
+bash scripts/start_gemma26b_a4b_it_vast.sh dump
 ```
 
-### Bạn cần kiểm tra
+### 6.2 Smoke test
 
-- file là `list` hay `dict`
-- key thật của history là gì
-- key thật của strategy là gì
+```bash
+bash scripts/start_gemma26b_a4b_it_vast.sh smoke
+```
 
----
+Smoke hiện được giới hạn `16` sample và `1` optimizer step để bắt lỗi môi trường sớm.
 
-## 6. So khớp với scaffold hiện tại
+### 6.3 Train thật
 
-Sau khi mở dữ liệu thật:
+```bash
+bash scripts/start_gemma26b_a4b_it_vast.sh train 2>&1 | tee train_gemma26b_a4b_it.log
+```
 
-### 6.1 Nếu AvaMERG khớp
-
-Không cần sửa `AvaMERGDataset`.
-
-### 6.2 Nếu ESConv khác format
-
-Sửa:
-
-- [esconv_dataset.py](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/empathy_mh_gemma/src/data/esconv_dataset.py>)
-
-Cần chỉnh chủ yếu:
-
-- `_iter_dialogues()`
-- `_normalize_history()`
-- `_extract_response()`
-- `_extract_strategy()`
-
----
-
-## 7. Dump prompt trước khi train
-
-Đây là bước rất quan trọng.
-
-### 7.1 Dump prompt từ AvaMERG text-only
+## 7. Lệnh train trực tiếp
 
 ```bash
 python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-12B-it \
+  --model_name_or_path google/gemma-4-26B-A4B-it \
   --avamerg_root data/raw/avamerg \
   --avamerg_split train \
   --avamerg_text_only \
-  --output_dir outputs/sft/debug_avamerg_text \
-  --dump_example_prompts
-```
-
-### 7.2 Dump prompt từ AvaMERG + ESConv
-
-```bash
-python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-12B-it \
-  --avamerg_root data/raw/avamerg \
-  --avamerg_split train \
-  --avamerg_text_only \
-  --esconv_json data/raw/esconv/YOUR_FILE.json \
-  --output_dir outputs/sft/debug_joint \
-  --dump_example_prompts
-```
-
-> Lưu ý: model chính đã chốt là `google/gemma-4-12B-it`. Nếu cần smoke test nhẹ hơn vì giới hạn bộ nhớ, có thể tạm thay bằng một model instruct nhỏ hơn, nhưng đường chạy chính nên giữ theo model id này.
-
-### 7.3 Mở file prompt dump
-
-Xem:
-
-- `outputs/sft/debug_*/example_prompts.json`
-
-Bạn cần kiểm tra:
-
-- prompt có tự nhiên không
-- response target có khớp với prompt không
-- strategy / CoE có bị quá nhiều không
-
----
-
-## 8. Chạy train nhỏ trước
-
-Không train lớn ngay.
-
-Mục tiêu:
-
-- kiểm tra pipeline end-to-end
-- xem tokenize + masking loss có đúng không
-- xem training loop chạy ổn không
-
-### 8.1 Train nhỏ với AvaMERG text-only
-
-```bash
-python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-12B-it \
-  --avamerg_root data/raw/avamerg \
-  --avamerg_split train \
-  --avamerg_text_only \
-  --output_dir outputs/sft/avamerg_text_smoke \
+  --esconv_json data/raw/esconv/ESConv.json \
+  --output_dir outputs/sft/task1_gemma26b_a4b_it_vast \
+  --load_in_4bit \
+  --use_lora \
+  --gradient_checkpointing \
+  --max_length 1024 \
+  --max_response_tokens 192 \
   --per_device_train_batch_size 1 \
-  --gradient_accumulation_steps 2 \
+  --gradient_accumulation_steps 8 \
+  --learning_rate 1e-4 \
   --num_train_epochs 1 \
-  --max_steps 1 \
-  --logging_steps 1 \
-  --save_steps 20
+  --logging_steps 10 \
+  --save_steps 100 \
+  --lora_r 16 \
+  --lora_alpha 32 \
+  --lora_dropout 0.05
 ```
 
-### 8.2 Train nhỏ với joint setup
+## 8. Upload checkpoint
+
+Sau khi train xong, folder cuối sẽ nằm ở:
+
+- `outputs/sft/task1_gemma26b_a4b_it_vast/final`
+
+Upload:
 
 ```bash
-python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-12B-it \
-  --avamerg_root data/raw/avamerg \
-  --avamerg_split train \
-  --avamerg_text_only \
-  --esconv_json data/raw/esconv/YOUR_FILE.json \
-  --output_dir outputs/sft/joint_smoke \
-  --per_device_train_batch_size 1 \
-  --gradient_accumulation_steps 2 \
-  --num_train_epochs 1 \
-  --max_steps 1 \
-  --logging_steps 1 \
-  --save_steps 20
+python scripts/publish_to_hub.py \
+  --repo_id SpringWang08/multimodal-empathy-mental-health-gemma26b-task1 \
+  --folder_path outputs/sft/task1_gemma26b_a4b_it_vast/final
 ```
 
----
+## 9. Nếu gặp OOM
 
-## 9. Khi nào mới dùng LoRA
+Giảm theo thứ tự này:
 
-Sau khi smoke test ổn:
+1. `max_length: 1024 -> 768`
+2. `gradient_accumulation_steps: 8 -> 4`
+3. `lora_r: 16 -> 8`
+4. smoke chỉ với `--max_train_samples 8`
 
-- loader đúng
-- prompt đúng
-- training loop chạy được
+## 10. File chính cần nhìn khi có lỗi
 
-lúc đó mới bật:
-
-```bash
---use_lora
-```
-
-Ví dụ:
-
-```bash
-python scripts/train_sft.py \
-  --model_name_or_path google/gemma-4-12B-it \
-  --avamerg_root data/raw/avamerg \
-  --avamerg_split train \
-  --avamerg_text_only \
-  --esconv_json data/raw/esconv/YOUR_FILE.json \
-  --output_dir outputs/sft/joint_lora \
-  --per_device_train_batch_size 1 \
-  --gradient_accumulation_steps 4 \
-  --num_train_epochs 1 \
-  --use_lora
-```
-
----
-
-## 10. Vì sao phải có `train_sft.py`
-
-`train_sft.py` là bước nối giữa:
-
-- dataset
-- prompt
-- tokenizer
-- model
-- supervised objective
-
-Nếu không có SFT, bạn chỉ đang dựa vào:
-
-- zero-shot prompting
-- hoặc inference ad hoc
-
-Điều đó chưa đủ để kết luận:
-
-- model có thật sự học được phong cách `empathetic + supportive + safe` từ `AvaMERG + ESConv` hay không
-
-### Vai trò của SFT ở đây
-
-SFT giúp:
-
-1. **ổn định hóa hành vi**
-   - model ít trả lời lệch phong cách hơn
-2. **học response distribution của dữ liệu**
-   - thay vì chỉ “đoán theo prompt”
-3. **tạo baseline nghiên cứu nghiêm túc**
-   - để sau này so sánh text-only vs multimodal-aware vs safety-aware
-
-### Nói đơn giản
-
-Prompt tốt giúp model hiểu bạn muốn gì.  
-**SFT giúp model làm điều đó ổn định hơn trên đúng bài toán của bạn.**
-
----
-
-## 11. Checkpoint: sau bước này bạn cần có gì
-
-Trước khi làm bước tiếp theo, bạn nên có:
-
-- dữ liệu thật đã tải
-- `AvaMERGDataset` chạy được
-- `ESConvDataset` khớp format thật
-- file `example_prompts.json`
-- một smoke run train thành công
-
----
-
-## 12. Nếu có lỗi, nên debug theo thứ tự này
-
-1. lỗi file path
-2. lỗi format JSON
-3. lỗi prompt builder
-4. lỗi tokenizer / chat template
-5. lỗi padding / labels masking
-6. lỗi model / GPU / memory
-
----
-
-## 13. Bước tiếp theo sau smoke run
-
-Sau khi smoke run ổn, bước tiếp theo là:
-
-1. viết script inference
-2. chạy vài sample held-out
-3. xem chất lượng response bằng mắt
-4. rồi mới mở rộng sang evaluation trên `MentalChat16K`
+- [scripts/train_sft.py](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/scripts/train_sft.py>)
+- [src/models/gemma_merg.py](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/src/models/gemma_merg.py>)
+- [docs/vast_a6000_gemma26b_a4b_it.md](</Users/springwang/Library/Mobile Documents/com~apple~CloudDocs/juniorYear/Research/mental health/multimodal-empathy-mental-health/docs/vast_a6000_gemma26b_a4b_it.md>)

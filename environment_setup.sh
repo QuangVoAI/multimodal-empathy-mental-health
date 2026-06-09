@@ -9,10 +9,16 @@ echo "[1/6] Project root: ${PROJECT_ROOT}"
 cd "${PROJECT_ROOT}"
 
 if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
-  echo "Python binary not found: ${PYTHON_BIN}"
-  echo "Set it explicitly, for example:"
-  echo "  PYTHON_BIN=python3.10 bash environment_setup.sh"
-  exit 1
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+  elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+  else
+    echo "Python binary not found: ${PYTHON_BIN}"
+    echo "Set it explicitly, for example:"
+    echo "  PYTHON_BIN=python3.10 bash environment_setup.sh"
+    exit 1
+  fi
 fi
 
 echo "[2/6] Creating virtual environment at ${VENV_DIR}"
@@ -42,10 +48,12 @@ fi
 echo "[6/6] Installing project requirements"
 pip install -r requirements.txt
 
+echo "[extra] Registering local Jupyter kernel"
+python -m ipykernel install --user --name multimodal-empathy-mental-health --display-name "Python (multimodal-empathy-mental-health)" >/dev/null 2>&1 || true
+
 echo
 echo "Environment setup complete."
 echo "Next:"
 echo "  source ${VENV_DIR}/bin/activate"
 echo "  hf auth login"
 echo "  python scripts/train_sft.py --help"
-

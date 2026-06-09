@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 import torch
 from transformers import (
+    AutoProcessor,
     AutoModelForCausalLM,
     AutoTokenizer,
     BitsAndBytesConfig,
@@ -41,7 +42,7 @@ class PromptParts:
 
 class GemmaMERG:
     """
-    Task-1-oriented scaffold for Gemma 4 12B.
+    Task-1-oriented scaffold for Gemma-family instruction models.
 
     This class does not yet implement multimodal embedding injection.
     Instead, it provides:
@@ -64,9 +65,22 @@ class GemmaMERG:
         self.torch_dtype = torch_dtype or (torch.bfloat16 if self.device == "cuda" else torch.float32)
         self.load_in_4bit = load_in_4bit
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+        self.processor = None
+        self.chat_template_handler = None
+        try:
+            self.processor = AutoProcessor.from_pretrained(model_name_or_path)
+            if hasattr(self.processor, "apply_chat_template"):
+                self.chat_template_handler = self.processor
+        except Exception:
+            self.processor = None
+
+        self.tokenizer = getattr(self.processor, "tokenizer", None)
+        if self.tokenizer is None:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
+        if self.chat_template_handler is None:
+            self.chat_template_handler = self.tokenizer
 
         self.model = self._load_model()
         if self.device != "cuda":
@@ -75,9 +89,10 @@ class GemmaMERG:
     def _load_model(self):
         load_kwargs: Dict[str, Any] = {
             "torch_dtype": self.torch_dtype,
+            "low_cpu_mem_usage": True,
         }
         if self.device == "cuda":
-            load_kwargs["device_map"] = "auto"
+            load_kwargs["device_map"] = {"": 0}
             if self.load_in_4bit:
                 load_kwargs["quantization_config"] = BitsAndBytesConfig(
                     load_in_4bit=True,
@@ -173,7 +188,7 @@ Output only the response."""
 
     def prepare_inputs(self, sample: Dict[str, Any]) -> Dict[str, torch.Tensor]:
         messages = self.build_messages(sample)
-        tokenized = self.tokenizer.apply_chat_template(
+        tokenized = self.chat_template_handler.apply_chat_template(
             messages,
             tokenize=True,
             return_dict=True,
