@@ -138,21 +138,36 @@ def tokenize_supervised_sample(
     )
 
     prompt_ids = tokenizer(prompt_text, add_special_tokens=False).input_ids
-    full_tokens = tokenizer(
-        full_text,
+    assistant_suffix_text = full_text[len(prompt_text):] if full_text.startswith(prompt_text) else target_response
+    assistant_ids = tokenizer(
+        assistant_suffix_text,
+        add_special_tokens=False,
         truncation=True,
         max_length=max_length,
-        padding=False,
-        return_tensors=None,
-    )
-    input_ids = full_tokens["input_ids"]
-    attention_mask = full_tokens["attention_mask"]
+    ).input_ids
 
-    prompt_len = min(len(prompt_ids), len(input_ids))
-    labels = [-100] * prompt_len + input_ids[prompt_len:]
-    labels = labels[: len(input_ids)]
-    if len(labels) < len(input_ids):
-        labels += [-100] * (len(input_ids) - len(labels))
+    if not assistant_ids:
+        assistant_ids = tokenizer(
+            target_response,
+            add_special_tokens=False,
+            truncation=True,
+            max_length=max(1, min(max_response_tokens or max_length, max_length)),
+        ).input_ids
+
+    if len(assistant_ids) >= max_length:
+        assistant_ids = assistant_ids[-max(1, max_length // 4):]
+
+    available_prompt_tokens = max(0, max_length - len(assistant_ids))
+    trimmed_prompt_ids = prompt_ids[-available_prompt_tokens:] if available_prompt_tokens > 0 else []
+
+    input_ids = trimmed_prompt_ids + assistant_ids
+    attention_mask = [1] * len(input_ids)
+    labels = [-100] * len(trimmed_prompt_ids) + assistant_ids
+
+    if not any(label != -100 for label in labels):
+        raise ValueError(
+            f"No supervised target tokens remained after truncation for sample {sample.get('sample_id')}"
+        )
 
     return {
         "input_ids": torch.tensor(input_ids, dtype=torch.long),
