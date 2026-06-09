@@ -88,7 +88,7 @@ class GemmaMERG:
 
     def _load_model(self):
         load_kwargs: Dict[str, Any] = {
-            "torch_dtype": self.torch_dtype,
+            "dtype": self.torch_dtype,
             "low_cpu_mem_usage": True,
         }
         if self.device == "cuda":
