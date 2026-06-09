@@ -18,10 +18,10 @@ common_args=(
   --load_in_4bit
   --use_lora
   --gradient_checkpointing
-  --max_length 640
-  --max_response_tokens 128
-  --lora_r 8
-  --lora_alpha 16
+  --max_length 512
+  --max_response_tokens 96
+  --lora_r 4
+  --lora_alpha 8
   --lora_dropout 0.05
 )
 

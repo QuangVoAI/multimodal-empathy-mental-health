@@ -1,8 +1,8 @@
 model_name_or_path: google/gemma-4-26B-A4B-it
 load_in_4bit: true
 use_lora: true
-lora_r: 8
-lora_alpha: 16
+lora_r: 4
+lora_alpha: 8
 lora_dropout: 0.05
-max_length: 640
-max_response_tokens: 128
+max_length: 512
+max_response_tokens: 96

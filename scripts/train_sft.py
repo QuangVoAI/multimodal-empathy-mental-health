@@ -102,9 +102,21 @@ def tokenize_supervised_sample(
     chat_template_handler,
     prompt_builder: GemmaMERG,
     max_length: int,
+    max_response_tokens: int,
 ) -> Dict[str, torch.Tensor]:
     user_prompt = build_user_prompt(prompt_builder, sample)
-    target_response = build_response_target(sample["response"])
+    raw_target_response = build_response_target(sample["response"])
+
+    if max_response_tokens and max_response_tokens > 0:
+        response_ids = tokenizer(
+            raw_target_response,
+            add_special_tokens=False,
+            truncation=True,
+            max_length=max_response_tokens,
+        ).input_ids
+        target_response = tokenizer.decode(response_ids, skip_special_tokens=True).strip()
+    else:
+        target_response = raw_target_response
 
     prompt_messages = [
         {"role": "system", "content": DEFAULT_SYSTEM_PROMPT},
@@ -155,12 +167,14 @@ class SupervisedTask1Dataset(torch.utils.data.Dataset):
         chat_template_handler,
         prompt_builder: GemmaMERG,
         max_length: int,
+        max_response_tokens: int,
     ) -> None:
         self.base_dataset = base_dataset
         self.tokenizer = tokenizer
         self.chat_template_handler = chat_template_handler
         self.prompt_builder = prompt_builder
         self.max_length = max_length
+        self.max_response_tokens = max_response_tokens
 
     def __len__(self) -> int:
         return len(self.base_dataset)
@@ -173,6 +187,7 @@ class SupervisedTask1Dataset(torch.utils.data.Dataset):
             chat_template_handler=self.chat_template_handler,
             prompt_builder=self.prompt_builder,
             max_length=self.max_length,
+            max_response_tokens=self.max_response_tokens,
         )
 
 
@@ -420,6 +435,7 @@ def run_training(args: argparse.Namespace) -> None:
         chat_template_handler=chat_template_handler,
         prompt_builder=prompt_builder,
         max_length=args.max_length,
+        max_response_tokens=args.max_response_tokens,
     )
     collator = SFTDataCollator(tokenizer)
 
