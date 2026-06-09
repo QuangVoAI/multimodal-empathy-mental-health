@@ -4,11 +4,13 @@ import argparse
 import json
 import math
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import torch
 from torch.utils.data import ConcatDataset, DataLoader, Subset
+from tqdm.auto import tqdm
 from transformers import (
     AutoProcessor,
     AutoModelForCausalLM,
@@ -229,6 +231,12 @@ def save_model_and_tokenizer(model, tokenizer, save_dir: Path, processor=None) -
         processor.save_pretrained(str(save_dir))
 
 
+def append_jsonl(path: Path, record: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
 def run_manual_training_loop(
     model,
     tokenizer,
@@ -260,51 +268,105 @@ def run_manual_training_loop(
         num_warmup_steps=warmup_steps,
         num_training_steps=total_steps,
     )
+    metrics_path = output_dir / "train_metrics.jsonl"
 
     model.train()
     global_step = 0
     running_loss = 0.0
     accumulation_counter = 0
     optimizer.zero_grad(set_to_none=True)
+    train_start_time = time.time()
+    progress = tqdm(total=total_steps, desc="train", dynamic_ncols=True)
 
-    for epoch in range(max(1, math.ceil(args.num_train_epochs))):
-        for step, batch in enumerate(dataloader, start=1):
-            batch = move_batch_to_model_device(batch, model)
-            outputs = model(**batch)
-            loss = outputs.loss / max(args.gradient_accumulation_steps, 1)
-            loss.backward()
-            running_loss += loss.item()
-            accumulation_counter += 1
+    try:
+        for epoch in range(max(1, math.ceil(args.num_train_epochs))):
+            for step, batch in enumerate(dataloader, start=1):
+                batch = move_batch_to_model_device(batch, model)
+                outputs = model(**batch)
+                loss = outputs.loss / max(args.gradient_accumulation_steps, 1)
+                loss.backward()
+                running_loss += loss.item()
+                accumulation_counter += 1
 
-            is_accumulation_boundary = accumulation_counter >= max(args.gradient_accumulation_steps, 1)
-            is_last_batch = step == len(dataloader)
-            if is_accumulation_boundary or is_last_batch:
-                optimizer.step()
-                scheduler.step()
-                optimizer.zero_grad(set_to_none=True)
-                global_step += 1
-                accumulation_counter = 0
+                is_accumulation_boundary = accumulation_counter >= max(args.gradient_accumulation_steps, 1)
+                is_last_batch = step == len(dataloader)
+                if is_accumulation_boundary or is_last_batch:
+                    optimizer.step()
+                    scheduler.step()
+                    optimizer.zero_grad(set_to_none=True)
+                    global_step += 1
+                    accumulation_counter = 0
 
-                if global_step % args.logging_steps == 0:
-                    print(
-                        f"[train] epoch={epoch + 1} step={global_step}/{total_steps} "
-                        f"loss={running_loss / args.logging_steps:.4f}"
+                    current_lr = scheduler.get_last_lr()[0]
+                    elapsed = time.time() - train_start_time
+                    avg_step_time = elapsed / max(global_step, 1)
+                    remaining_steps = max(total_steps - global_step, 0)
+                    eta_seconds = avg_step_time * remaining_steps
+                    smoothed_loss = running_loss / max(args.logging_steps, 1)
+
+                    progress.update(1)
+                    progress.set_postfix(
+                        epoch=epoch + 1,
+                        loss=f"{smoothed_loss:.4f}",
+                        lr=f"{current_lr:.2e}",
+                        eta=f"{eta_seconds/60:.1f}m",
                     )
-                    running_loss = 0.0
 
-                if global_step % args.save_steps == 0:
-                    ckpt_dir = output_dir / f"checkpoint-{global_step}"
-                    save_model_and_tokenizer(model, tokenizer, ckpt_dir, processor=processor)
-                    print(f"[train] saved checkpoint to {ckpt_dir}")
+                    if global_step % args.logging_steps == 0 or global_step == 1:
+                        log_record = {
+                            "step": global_step,
+                            "epoch": epoch + 1,
+                            "loss": float(running_loss / max(args.logging_steps, 1)),
+                            "lr": float(current_lr),
+                            "elapsed_sec": float(elapsed),
+                            "eta_sec": float(eta_seconds),
+                            "samples_seen_estimate": int(
+                                global_step
+                                * args.per_device_train_batch_size
+                                * max(args.gradient_accumulation_steps, 1)
+                            ),
+                        }
+                        append_jsonl(metrics_path, log_record)
+                        print(
+                            f"[train] epoch={epoch + 1} step={global_step}/{total_steps} "
+                            f"loss={log_record['loss']:.4f} lr={current_lr:.2e} "
+                            f"elapsed={elapsed/60:.1f}m eta={eta_seconds/60:.1f}m"
+                        )
+                        running_loss = 0.0
 
-                if global_step >= total_steps:
-                    final_dir = output_dir / "final"
-                    save_model_and_tokenizer(model, tokenizer, final_dir, processor=processor)
-                    print(f"[train] saved final checkpoint to {final_dir}")
-                    return
+                    if global_step % args.save_steps == 0:
+                        ckpt_dir = output_dir / f"checkpoint-{global_step}"
+                        save_model_and_tokenizer(model, tokenizer, ckpt_dir, processor=processor)
+                        print(f"[train] saved checkpoint to {ckpt_dir}")
+
+                    if global_step >= total_steps:
+                        final_dir = output_dir / "final"
+                        save_model_and_tokenizer(model, tokenizer, final_dir, processor=processor)
+                        append_jsonl(
+                            metrics_path,
+                            {
+                                "event": "train_complete",
+                                "step": global_step,
+                                "elapsed_sec": float(time.time() - train_start_time),
+                                "final_checkpoint": str(final_dir),
+                            },
+                        )
+                        print(f"[train] saved final checkpoint to {final_dir}")
+                        return
+    finally:
+        progress.close()
 
     final_dir = output_dir / "final"
     save_model_and_tokenizer(model, tokenizer, final_dir, processor=processor)
+    append_jsonl(
+        metrics_path,
+        {
+            "event": "train_complete",
+            "step": global_step,
+            "elapsed_sec": float(time.time() - train_start_time),
+            "final_checkpoint": str(final_dir),
+        },
+    )
     print(f"[train] saved final checkpoint to {final_dir}")
 
 
