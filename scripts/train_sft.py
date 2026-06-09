@@ -301,6 +301,9 @@ def maybe_wrap_lora(model, args: argparse.Namespace):
 
     # Gemma 4 wraps quantized linears inside Gemma4ClippableLinear, so LoRA
     # has to target the inner `.linear` modules instead of the wrapper.
+    # On a single A6000 48GB we keep the first stable path narrow and target
+    # attention projections only; this trims memory compared with adding MLP
+    # adapters during the initial VM runs.
     peft_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
         inference_mode=False,
@@ -312,9 +315,6 @@ def maybe_wrap_lora(model, args: argparse.Namespace):
             "k_proj.linear",
             "v_proj.linear",
             "o_proj.linear",
-            "gate_proj.linear",
-            "up_proj.linear",
-            "down_proj.linear",
         ],
     )
     model = get_peft_model(model, peft_config)

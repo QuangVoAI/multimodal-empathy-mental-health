@@ -18,10 +18,10 @@ common_args=(
   --load_in_4bit
   --use_lora
   --gradient_checkpointing
-  --max_length 1024
-  --max_response_tokens 192
-  --lora_r 16
-  --lora_alpha 32
+  --max_length 640
+  --max_response_tokens 128
+  --lora_r 8
+  --lora_alpha 16
   --lora_dropout 0.05
 )
 
@@ -40,7 +40,7 @@ case "$MODE" in
       --gradient_accumulation_steps 1 \
       --learning_rate 1e-4 \
       --num_train_epochs 1 \
-      --max_train_samples 16 \
+      --max_train_samples 8 \
       --max_steps 1 \
       --logging_steps 1
     ;;
